@@ -1,36 +1,29 @@
 
+#include <MR/Logger/WriteRequest.hpp>
+#include <MR/Queue/StdQueue.hpp>
 #include <MR/IO/IOUring.hpp>
 #include <MR/IO/WriteOnlyFile.hpp>
 #include <thread>
 #include <vector>
 #include <iostream>
+#include <MR/Logger/Logger.hpp>
 
 using namespace MR::IO;
 using namespace std::chrono_literals;
 
 int main() {
 
-
-  WriteOnlyFile file{"log.log"};
-
-  IOUring ring{8};
-
-  std::vector<std::string> msgs(10);
+  MR::Logger::Logger log{std::make_shared<MR::Queue::StdQueue<MR::Logger::WriteRequest>>()};
 
   int i = 1;
   while (i <= 10) {
     std::cout << i << ". Writing to log\n";
-    msgs.push_back({std::to_string(i) + ". ligma\n"});
+    log.info(std::to_string(i) + ". Logging message.");
     i++;
   }
 
-
-  for (const auto& msg : msgs) {
-    ring.submitWrite(msg, file);
-  }
-
   // WAITS FOR LOGGING TO FINISH
-  std::this_thread::sleep_for(500ms);
+  std::this_thread::sleep_for(1000ms);
 
   return 0;
 }

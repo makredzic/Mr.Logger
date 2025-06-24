@@ -11,13 +11,30 @@ namespace MR::Queue {
   class StdQueue : public Interface::ThreadSafeQueue<T> {
 
     private:
-      #define LOCK() std::lock_guard<std::mutex> lock{mutex_};
+      #define LOCK() std::unique_lock<std::mutex> lock{mutex_};
 
       std::queue<T> queue_;
       mutable std::mutex mutex_;
       std::condition_variable cv_;
+      
+      bool stop_{false};
 
     public:
+
+      inline StdQueue() = default;
+      inline ~StdQueue() {
+        shutdown();
+      }
+      
+      inline void shutdown() override {
+        {
+          LOCK();
+          stop_ = true;
+        }
+        cv_.notify_all();
+      }
+
+
       inline void push(const T& element) override {
         {
           LOCK();
@@ -34,7 +51,7 @@ namespace MR::Queue {
         cv_.notify_one();
       }
 
-      inline std::optional<T> tryPop() {
+      inline std::optional<T> tryPop() override {
         LOCK();
         if (queue_.empty()) return {};
 
@@ -44,13 +61,17 @@ namespace MR::Queue {
         return element;
       }
 
-      inline T pop() override {
+      inline std::optional<T> pop() override {
         
         LOCK();
 
         cv_.wait(lock, [this](){
-          return !queue_.empty();
+          return !queue_.empty() || stop_;
         });
+
+        if (queue_.empty()) {
+          return {};
+        }
 
         T element = std::move(queue_.front());
         queue_.pop();
@@ -63,7 +84,7 @@ namespace MR::Queue {
         return queue_.empty();
       }
 
-      inline bool size() const override {
+      inline size_t size() const override {
         LOCK();
         return queue_.size();
       }

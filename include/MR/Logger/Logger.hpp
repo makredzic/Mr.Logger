@@ -2,25 +2,24 @@
 
 #include <string>
 
+#include <MR/Logger/WriteRequest.hpp>
+
 #include <MR/IO/WriteOnlyFile.hpp>
 #include <MR/IO/IOUring.hpp>
 
 #include <MR/Interface/ThreadSafeQueue.hpp>
 #include <memory>
 #include <thread>
+#include <queue>
 
 namespace MR::Logger {
   class Logger {
     private:
 
       inline static uint16_t QUEUE_SIZE = 8u;
-      enum class SEVERITY_LEVEL { INFO, WARN, ERROR };
 
-      struct WriteRequest {
-        SEVERITY_LEVEL level;
-        std::string data;
-      };
 
+      std::queue<std::string> DELETE_ME_Q;
 
       IO::IOUring ring_;
       IO::WriteOnlyFile file_;
@@ -29,12 +28,13 @@ namespace MR::Logger {
       std::jthread worker_;
 
 
-      void consume();
+      void consume(std::stop_token);
       void write(SEVERITY_LEVEL, std::string&&);
 
     public:
 
       Logger(std::shared_ptr<Interface::ThreadSafeQueue<WriteRequest>>);
+      ~Logger();
       
       Logger(const Logger&) = delete;
       Logger(Logger&&) = delete;
