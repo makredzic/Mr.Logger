@@ -10,7 +10,6 @@
 #include <MR/Interface/ThreadSafeQueue.hpp>
 #include <memory>
 #include <thread>
-#include <queue>
 
 namespace MR::Logger {
   class Logger {
@@ -18,11 +17,8 @@ namespace MR::Logger {
 
       inline static uint16_t QUEUE_SIZE = 8u;
 
-
-      std::queue<std::string> DELETE_ME_Q;
-
-      IO::IOUring ring_;
       IO::WriteOnlyFile file_;
+      IO::IOUring ring_;
       std::shared_ptr<Interface::ThreadSafeQueue<WriteRequest>> queue_;
 
       std::jthread worker_;
