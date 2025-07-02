@@ -4,6 +4,7 @@
 #include <mutex>
 #include <queue>
 #include <MR/Interface/ThreadSafeQueue.hpp>
+#include <stdexcept>
 
 namespace MR::Queue {
 
@@ -19,13 +20,6 @@ namespace MR::Queue {
       
       bool stop_{false};
 
-    public:
-
-      inline StdQueue() = default;
-      inline ~StdQueue() {
-        shutdown();
-      }
-      
       inline void shutdown() override {
         {
           LOCK();
@@ -34,10 +28,17 @@ namespace MR::Queue {
         cv_.notify_all();
       }
 
+    public:
 
+      inline StdQueue() = default;
+      inline ~StdQueue() {
+        shutdown();
+      }
+      
       inline void push(const T& element) override {
         {
           LOCK();
+          if (stop_) throw std::runtime_error{"Push on stopped std queue."};
           queue_.push(element);
         }
         cv_.notify_one();
@@ -46,6 +47,7 @@ namespace MR::Queue {
       inline void push(T&& element) override {
         {
           LOCK();
+          if (stop_) throw std::runtime_error{"Push on stopped std queue."}; // TODO: possibly just nullopt instead of a runtime exception
           queue_.push(std::move(element));
         }
         cv_.notify_one();

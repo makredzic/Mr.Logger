@@ -44,7 +44,8 @@ public:
     // GET SUBMISSION QUEUE ENTRY
     io_uring_sqe *sqe = io_uring_get_sqe(&ring_);
     if (!sqe) {
-      throw std::runtime_error{"Could not get SQE. Queue could be possibly full.\n"};
+      std::cout << "Could not get SQE. Queue could be possibly full.\n";
+      throw std::runtime_error{"get sqe"};
     }
 
     // PREPARE WRITE
@@ -104,7 +105,7 @@ private:
     // ON SHUTDOWN
     io_uring_cqe* cqe;
     while (io_uring_peek_cqe(&ring_, &cqe) == 0) {
-      std::cout << "Entered peak for " << *(reinterpret_cast<std::string*>(cqe->user_data)) << std::endl;
+      // std::cout << "Entered peak for " << *(reinterpret_cast<std::string*>(cqe->user_data)) << std::endl;
       std::unique_ptr<std::string> buffer(
         reinterpret_cast<std::string*>(cqe->user_data)
       );

@@ -4,7 +4,6 @@
 #include <MR/IO/IOUring.hpp>
 #include <MR/IO/WriteOnlyFile.hpp>
 #include <thread>
-#include <vector>
 #include <iostream>
 #include <MR/Logger/Logger.hpp>
 
@@ -15,15 +14,25 @@ int main() {
 
   MR::Logger::Logger log{std::make_shared<MR::Queue::StdQueue<MR::Logger::WriteRequest>>()};
 
+  std::thread t1{[&log]() {
+    int i = 1;
+    while (i <= 10) {
+      std::cout << i << ". Thread Writing to log\n";
+      log.info(std::to_string(i) + ". Thread Logging message.");
+      i++;
+    }
+  }};
+
   int i = 1;
   while (i <= 10) {
     std::cout << i << ". Writing to log\n";
     log.info(std::to_string(i) + ". Logging message.");
+    std::this_thread::sleep_for(1ms);
     i++;
   }
 
   // WAITS FOR LOGGING TO FINISH
-  std::this_thread::sleep_for(1000ms);
+  t1.join();
 
   return 0;
 }
