@@ -8,12 +8,12 @@ namespace MR::Logger {
   struct Config {
 
     // All severities always end up here
-    std::string_view log_file_name;
+    std::string log_file_name;
 
     // Optional. If not present, won't be used.
-    std::string_view info_file_name;
-    std::string_view warn_file_name;
-    std::string_view error_file_name;
+    std::string info_file_name;
+    std::string warn_file_name;
+    std::string error_file_name;
 
     // io_uring queue depth
     uint16_t queue_depth; 

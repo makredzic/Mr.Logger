@@ -138,12 +138,24 @@ void Logger::write(SEVERITY_LEVEL severity, std::string&& str) {
     write(SEVERITY_LEVEL::INFO, std::move(str));
   }
 
+  void Logger::info(const std::string& str) {
+    write(SEVERITY_LEVEL::INFO, std::string(str));
+  }
+
   void Logger::warn(std::string&& str) {
     write(SEVERITY_LEVEL::WARN, std::move(str));
   }
 
+  void Logger::warn(const std::string& str) {
+    write(SEVERITY_LEVEL::WARN, std::string(str));
+  }
+
   void Logger::error(std::string&& str) {
     write(SEVERITY_LEVEL::ERROR, std::move(str));
+  }
+
+  void Logger::error(const std::string& str) {
+    write(SEVERITY_LEVEL::ERROR, std::string(str));
   }
 
   Logger::~Logger() = default;

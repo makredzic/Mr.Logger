@@ -9,6 +9,7 @@ gmock_dep = dependency('gmock', static: true)
 # of individual test executables dynamically
 # in the foreach loop below
 test_filenames = [
+  'Integration/LoggerIntegrationTest.cpp'
 ]
 
 # Build and test each one

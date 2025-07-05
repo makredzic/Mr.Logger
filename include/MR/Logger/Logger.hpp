@@ -2,7 +2,6 @@
 
 #include <MR/Logger/Config.hpp>
 #include <MR/Coroutine/WriteTask.hpp>
-#include <string_view>
 
 #include <string>
 
@@ -17,17 +16,16 @@
 #include <thread>
 
 namespace MR::Logger {
-  using namespace std::literals;
 
   class Logger {
     private:
 
       // CONFIGURATION
       inline static Config default_config_{
-        .log_file_name = "output.log"sv,
-        .info_file_name = ""sv,
-        .warn_file_name = ""sv,
-        .error_file_name = ""sv,
+        .log_file_name = "output.log",
+        .info_file_name = "",
+        .warn_file_name = "",
+        .error_file_name = "",
         .queue_depth = 256u,
         .batch_size = 10u,
         .max_logs_per_iteration = 10u,
@@ -94,7 +92,10 @@ namespace MR::Logger {
       Logger& operator=(const Logger&) = delete;
 
       void info(std::string&& str);
+      void info(const std::string& str);
       void warn(std::string&& str);
+      void warn(const std::string& str);
       void error(std::string&& str);
+      void error(const std::string& str);
   };
 }
