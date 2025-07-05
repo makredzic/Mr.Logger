@@ -32,42 +32,6 @@ namespace MR::Logger {
         ._queue = std::make_shared<Queue::StdQueue<WriteRequest>>(),
       };
 
-      inline static Config mergeWithDefault(const Config& user_config) {
-        return Config{
-        .log_file_name = user_config.log_file_name.empty()
-            ? default_config_.log_file_name
-            : user_config.log_file_name,
-
-        .info_file_name = user_config.info_file_name.empty()
-          ? default_config_.info_file_name
-          : user_config.info_file_name,
-
-        .warn_file_name = user_config.warn_file_name.empty()
-          ? default_config_.warn_file_name
-          : user_config.warn_file_name,
-
-        .error_file_name = user_config.error_file_name.empty()
-          ? default_config_.error_file_name
-          : user_config.error_file_name,
-
-        .queue_depth = user_config.queue_depth == 0
-          ? default_config_.queue_depth
-          : user_config.queue_depth,
-
-        .batch_size = user_config.batch_size == 0
-          ? default_config_.batch_size
-          : user_config.batch_size,
-
-        .max_logs_per_iteration = user_config.max_logs_per_iteration == 0
-          ? default_config_.max_logs_per_iteration
-          : user_config.max_logs_per_iteration,
-
-        ._queue = user_config._queue == nullptr
-          ? default_config_._queue
-          : user_config._queue
-        };
-      }
-      
 
       Config config_;
       IO::WriteOnlyFile file_;
@@ -76,6 +40,7 @@ namespace MR::Logger {
 
       std::jthread worker_;
 
+      Config mergeWithDefault(const Config& user_config);
       void write(SEVERITY_LEVEL, std::string&&);
       void eventLoop(std::stop_token);
       std::string format(WriteRequest&& msg);
