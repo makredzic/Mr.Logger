@@ -1,6 +1,6 @@
 
+#include "MR/Logger/Config.hpp"
 #include <MR/Logger/WriteRequest.hpp>
-#include <MR/Queue/StdQueue.hpp>
 #include <MR/IO/IOUring.hpp>
 #include <MR/IO/WriteOnlyFile.hpp>
 #include <thread>
@@ -12,14 +12,14 @@ using namespace std::chrono_literals;
 
 int main() {
 
-  MR::Logger::Logger log{std::make_shared<MR::Queue::StdQueue<MR::Logger::WriteRequest>>()};
+  MR::Logger::Logger log{};
 
   std::thread t1{[&log]() {
     int i = 1;
     while (i <= 12) {
       std::cout << i << ". Thread Writing to log\n";
       log.info(std::to_string(i) + ". Thread Logging message.");
-    std::this_thread::sleep_for(2ms);
+      std::this_thread::sleep_for(2ms);
       i++;
     }
   }};

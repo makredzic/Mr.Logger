@@ -1,3 +1,4 @@
+#include "MR/Logger/Config.hpp"
 #include <MR/Logger/WriteRequest.hpp>
 #include <MR/Logger/SeverityLevel.hpp>
 #include <MR/Interface/ThreadSafeQueue.hpp>
@@ -5,7 +6,6 @@
 #include <MR/Coroutine/WriteTask.hpp>
 
 
-#include <memory>
 #include <stop_token>
 #include <string>
 #include <thread>
@@ -17,10 +17,11 @@
 
 namespace MR::Logger {
 
-Logger::Logger(std::shared_ptr<Interface::ThreadSafeQueue<WriteRequest>> q) : 
-  file_{"Log.log"},
-  ring_{QUEUE_SIZE},
-  queue_{q},
+Logger::Logger(const Config& config) : 
+  config_(mergeWithDefault(config)),
+  file_{config_.log_file_name},
+  ring_{config_.queue_depth},
+  queue_{config_._queue},
   worker_{[this](std::stop_token st){ eventLoop(st); }} {}
 
 void Logger::write(SEVERITY_LEVEL severity, std::string&& str) {
@@ -38,7 +39,10 @@ void Logger::write(SEVERITY_LEVEL severity, std::string&& str) {
 
   void Logger::eventLoop(std::stop_token st) {
 
+    // Required to hold the state of the coroutines while they
+    // are suspended and not finished
     std::vector<Coroutine::WriteTask> active_tasks;
+
     size_t pending_writes = 0;
 
     while(!st.stop_requested() || !queue_->empty() || !active_tasks.empty()) {
@@ -52,14 +56,14 @@ void Logger::write(SEVERITY_LEVEL severity, std::string&& str) {
         pending_writes++;
         processed_this_iteration++;
 
-        if (pending_writes >= BATCH_SIZE) {
+        if (pending_writes >= config_.batch_size) {
           ring_.submitPendingSQEs();
           pending_writes = 0;
         }
 
-        // Prevents too many requests causing this loop to stall and
-        // processCompletions not being called below
-        if (processed_this_iteration >= MAX_MSGS_PER_ITERATION) break;
+        // Prevents too many requests from causing this loop to stall 
+        // and processCompletions not being called below
+        if (processed_this_iteration >= config_.max_logs_per_iteration) break;
       }
 
       // Submit any remaining writes
@@ -68,7 +72,7 @@ void Logger::write(SEVERITY_LEVEL severity, std::string&& str) {
         pending_writes = 0;
       }
       
-      // Process completions (may dispatch to thread pool)
+      // Process CQEs (may dispatch to thread pool)
       ring_.processCompletions();
       
       // Clean up completed tasks
