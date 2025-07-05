@@ -14,6 +14,7 @@ deps = [
 # --- Subdirectories ---
 subdir('src')
 subdir('test')
+subdir('Benchmarks')
 
 # --- Main executable ---
 executable('main',
