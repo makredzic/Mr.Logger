@@ -38,7 +38,7 @@ namespace MR::Queue {
       inline void push(const T& element) override {
         {
           LOCK();
-          if (stop_) throw std::runtime_error{"Push on stopped std queue."};
+          if (stop_) return;
           queue_.push(element);
         }
         cv_.notify_one();
@@ -47,7 +47,7 @@ namespace MR::Queue {
       inline void push(T&& element) override {
         {
           LOCK();
-          if (stop_) throw std::runtime_error{"Push on stopped std queue."}; // TODO: possibly just nullopt instead of a runtime exception
+          if (stop_) return;
           queue_.push(std::move(element));
         }
         cv_.notify_one();

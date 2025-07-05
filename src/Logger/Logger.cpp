@@ -194,6 +194,14 @@ void Logger::write(SEVERITY_LEVEL severity, std::string&& str) {
     write(SEVERITY_LEVEL::ERROR, std::string(str));
   }
 
-  Logger::~Logger() = default;
+  Logger::~Logger() {
+
+    queue_->shutdown();
+
+    if (worker_.joinable()) {
+        worker_.request_stop();
+        worker_.join(); 
+    }
+  }
   
 };

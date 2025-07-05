@@ -47,9 +47,7 @@ public:
   }
 
   inline ~IOUring() { 
-
-    // TODO
-
+    io_uring_queue_exit(&ring_);
   }
 
   IOUring(const IOUring &) = delete;

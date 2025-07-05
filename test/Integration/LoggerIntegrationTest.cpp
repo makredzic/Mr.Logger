@@ -7,6 +7,9 @@
 #include <fstream>
 #include <filesystem>
 #include <vector>
+#include <barrier>
+#include <set>
+#include <atomic>
 
 namespace MR::Logger::Test {
 
@@ -24,9 +27,9 @@ protected:
             .info_file_name = "",
             .warn_file_name = "",
             .error_file_name = "",
-            .queue_depth = 256,
-            .batch_size = 10,
-            .max_logs_per_iteration = 10,
+            .queue_depth = 4096,
+            .batch_size = 50,
+            .max_logs_per_iteration = 50,
             ._queue = std::make_shared<Queue::StdQueue<WriteRequest>>()
         };
     }
@@ -191,6 +194,89 @@ TEST_F(LoggerIntegrationTest, ThreeThreadLogging) {
     for (const auto& line : lines) {
         EXPECT_THAT(line, testing::HasSubstr("[INFO]"));
         EXPECT_THAT(line, testing::HasSubstr("[Thread:"));
+    }
+}
+
+TEST_F(LoggerIntegrationTest, EarlyLoggerClosureMultiThreaded) {
+    const int num_threads = 4;
+    const int messages_per_thread = 100000;
+    
+    std::vector<std::string> queued_messages;
+    std::mutex queued_messages_mutex;
+    
+    std::vector<std::thread> threads;
+    std::barrier sync_point(num_threads + 1);  // Synchronize thread start
+    
+    // Create a scope to control logger lifetime
+    {
+        Logger logger{config_};
+        
+        // Launch threads that write messages
+        for (int thread_id = 0; thread_id < num_threads; ++thread_id) {
+            threads.emplace_back([&, thread_id]() {
+                // Wait for all threads to start together
+                sync_point.arrive_and_wait();
+                
+                int msg_count = 0;
+                while (msg_count < messages_per_thread) {
+                    if (msg_count % 1000 == 0) {
+                        std::cout << "Thread " << thread_id << " at message " << msg_count <<
+                            std::endl;
+                    }
+                    std::string msg = "Thread" + std::to_string(thread_id) + "_Msg" + std::to_string(msg_count);
+                    
+                    try {
+
+                        logger.info(msg);
+                        
+                        // Only track messages that were successfully queued
+                        {
+                            std::lock_guard<std::mutex> lock(queued_messages_mutex);
+                            queued_messages.push_back(msg);
+                        }
+                        msg_count++;
+                        
+                    } catch (const std::exception& e) {
+                        // Logger queue might be shut down - this is expected during early closure
+                        std::cout << "EXCEPTION: " << e.what() << std::endl;
+                        break;
+                    }
+                }
+            });
+        }
+        
+        // Start all threads simultaneously
+        sync_point.arrive_and_wait();
+
+        // Logger is now destroyed - join all threads to clean up properly
+        for (auto& t : threads) {
+            if (t.joinable()) {
+                t.join();
+            }
+        }
+    }
+
+
+    std::cout << "QUEUED MESSAGES SIZE = " << queued_messages.size() << std::endl;
+
+    // Verify num messages in the file
+    auto lines = readLogFile();
+    ASSERT_EQ(lines.size(), queued_messages.size()) 
+        << "Expected " << queued_messages.size() << " messages in file, but got " << lines.size()
+        << " - Logger destructor did not properly flush all queued messages!";
+    
+    // Verify all queued messages are present in the file
+    for (const auto& queued_msg : queued_messages) {
+        EXPECT_THAT(lines, testing::Contains(testing::HasSubstr(queued_msg)));
+    }
+    
+    // Verify ordering by matching each line to expected messages in sequence
+    size_t expected_index = 0;
+    for (const auto& line : lines) {
+        if (expected_index < queued_messages.size()) {
+            EXPECT_THAT(line, testing::HasSubstr(queued_messages[expected_index]));
+            expected_index++;
+        }
     }
 }
 

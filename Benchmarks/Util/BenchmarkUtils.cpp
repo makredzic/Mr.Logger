@@ -1,48 +1,109 @@
 #include "BenchmarkUtils.hpp"
 #include <MR/Logger/Logger.hpp>
 #include <iostream>
+#include <fstream>
 #include <chrono>
 #include <string>
+#include <filesystem>
+#include <thread>
+#include <sstream>
+#include <iomanip>
 
 namespace MR::Benchmarks {
 
-BenchmarkResult benchmark_logger_performance(const MR::Logger::Config& config) {
-    const size_t NUM_MESSAGES = 10000;
-    
-    // Create logger with specified config
-    MR::Logger::Logger logger(config);
-    
-    // Start timing
-    auto start = std::chrono::high_resolution_clock::now();
-    
-    // Log 10,000 messages
-    for (size_t i = 1; i <= NUM_MESSAGES; ++i) {
-        logger.info("Benchmark message #" + std::to_string(i));
+
+void deleteIfExists(const std::string& filename) {
+    std::filesystem::path filePath = std::filesystem::current_path() / filename;
+
+    if (std::filesystem::exists(filePath)) {
+        std::cout << "File exists: " << filePath << ", deleting...\n";
+        std::filesystem::remove(filePath); // returns true if file was deleted
+    } else {
+        std::cout << "File does not exist: " << filePath << "\n";
     }
+}
+
+void save_results_to_json(const BenchmarkResult& result, const std::string& results_dir) {
+    // Create results directory if it doesn't exist
+    std::filesystem::create_directories(results_dir);
     
-    // Stop timing
-    auto end = std::chrono::high_resolution_clock::now();
+    // Generate timestamp for unique filename
+    auto now = std::chrono::system_clock::now();
+    auto time_t = std::chrono::system_clock::to_time_t(now);
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
     
-    // Calculate duration
-    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+    std::stringstream filename;
+    filename << results_dir << "/" << result.benchmark_name << "_" 
+             << std::put_time(std::localtime(&time_t), "%Y%m%d_%H%M%S") 
+             << "_" << std::setfill('0') << std::setw(3) << ms.count() << ".json";
     
-    // Calculate messages per second
-    double seconds = static_cast<double>(duration.count()) / 1e9;
-    double messages_per_second = NUM_MESSAGES / seconds;
+    std::ofstream json_file(filename.str());
+    json_file << "{\n";
+    json_file << "  \"benchmark_name\": \"" << result.benchmark_name << "\",\n";
+    json_file << "  \"duration_ns\": " << result.duration.count() << ",\n";
+    json_file << "  \"duration_ms\": " << (result.duration.count() / 1e6) << ",\n";
+    json_file << "  \"messages_logged\": " << result.messages_logged << ",\n";
+    json_file << "  \"messages_per_second\": " << result.messages_per_second << ",\n";
+    json_file << "  \"log_file_name\": \"" << result.log_file_name << "\",\n";
+    json_file << "  \"configuration\": {\n";
+    json_file << "    \"queue_depth\": " << result.queue_depth << ",\n";
+    json_file << "    \"batch_size\": " << result.batch_size << ",\n";
+    json_file << "    \"max_logs_per_iteration\": " << result.max_logs_per_iteration << "\n";
+    json_file << "  }\n";
+    json_file << "}\n";
+    json_file.close();
+}
+
+BenchmarkResult benchmark_logger_performance(const MR::Logger::Config& config, const std::string& benchmark_name) {
+    const size_t NUM_MESSAGES = 1000000;
     
-    // Print results
-    std::cout << "Benchmark Results:" << std::endl;
-    std::cout << "  Messages logged: " << NUM_MESSAGES << std::endl;
-    std::cout << "  Duration: " << duration.count() << " ns" << std::endl;
-    std::cout << "  Duration: " << duration.count() / 1e6 << " ms" << std::endl;
-    std::cout << "  Messages per second: " << messages_per_second << std::endl;
-    std::cout << "  Configuration:" << std::endl;
-    std::cout << "    Queue depth: " << config.queue_depth << std::endl;
-    std::cout << "    Batch size: " << config.batch_size << std::endl;
-    std::cout << "    Max logs per iteration: " << config.max_logs_per_iteration << std::endl;
-    std::cout << std::endl;
-    
-    return {duration, NUM_MESSAGES, messages_per_second};
+    {
+
+        deleteIfExists(config.log_file_name);
+
+        // Create logger with specified config
+        MR::Logger::Logger logger(config);
+        
+        // Start timing
+        auto start = std::chrono::high_resolution_clock::now();
+        
+        // Log 10,000 messages
+        for (size_t i = 1; i <= NUM_MESSAGES; ++i) {
+            logger.info("Benchmark message #" + std::to_string(i));
+        }
+        
+        // Stop timing
+        auto end = std::chrono::high_resolution_clock::now();
+        
+        // Calculate duration
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+        
+        // Calculate messages per second
+        double seconds = static_cast<double>(duration.count()) / 1e9;
+        double messages_per_second = NUM_MESSAGES / seconds;
+        
+        // Wait a bit for async logging to complete
+        std::this_thread::sleep_for(std::chrono::milliseconds(NUM_MESSAGES / 1000));
+        
+        // Simple stdout output - just name and duration
+        std::cout << benchmark_name << ": " << (duration.count() / 1e6) << " ms" << std::endl;
+        
+        BenchmarkResult result{
+            duration,
+            NUM_MESSAGES,
+            messages_per_second,
+            benchmark_name,
+            config.log_file_name,
+            config.queue_depth,
+            config.batch_size,
+            config.max_logs_per_iteration
+        };
+        
+        // Save results to JSON
+        save_results_to_json(result);
+        
+        return result;
+    }
 }
 
 }
