@@ -1,5 +1,4 @@
 
-#include "MR/Logger/Config.hpp"
 #include <MR/Logger/WriteRequest.hpp>
 #include <MR/IO/IOUring.hpp>
 #include <MR/IO/WriteOnlyFile.hpp>
