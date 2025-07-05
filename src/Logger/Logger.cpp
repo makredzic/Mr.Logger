@@ -2,6 +2,9 @@
 #include <MR/Logger/SeverityLevel.hpp>
 #include <MR/Interface/ThreadSafeQueue.hpp>
 #include <MR/Logger/Logger.hpp>
+#include <MR/Coroutine/WriteTask.hpp>
+
+
 #include <memory>
 #include <stop_token>
 #include <string>
@@ -18,7 +21,7 @@ Logger::Logger(std::shared_ptr<Interface::ThreadSafeQueue<WriteRequest>> q) :
   file_{"Log.log"},
   ring_{QUEUE_SIZE},
   queue_{q},
-  worker_{[this](std::stop_token st){ consume(st); }} {}
+  worker_{[this](std::stop_token st){ eventLoop(st); }} {}
 
 void Logger::write(SEVERITY_LEVEL severity, std::string&& str) {
 
@@ -33,18 +36,98 @@ void Logger::write(SEVERITY_LEVEL severity, std::string&& str) {
     return;
   }
 
-  void Logger::consume(std::stop_token st) {
-    while(!st.stop_requested() || !queue_->empty()) {
-      std::cout << "Stop requested = " << st.stop_requested() << std::endl;
-      // std::cout << "Queue size = " << queue_->size() << std::endl;
+  void Logger::eventLoop(std::stop_token st) {
 
-      auto writeRequest = queue_->pop(); 
-      if (!writeRequest) continue; // empty optional returned on empty queue so go back to the while check
+    std::vector<Coroutine::WriteTask> active_tasks;
+    size_t pending_writes = 0;
 
-      std::string msg = fmt::format("[{}] [{}] [Thread: {}]: {}\n",  writeRequest->timestamp, sevLvlToStr(writeRequest->level), writeRequest->threadId, std::move(writeRequest->data));
+    while(!st.stop_requested() || !queue_->empty() || !active_tasks.empty()) {
+      size_t processed_this_iteration = 0;
 
-      ring_.submitWrite(std::make_unique<std::string>(std::move(msg)), file_);
+      // NON BLOCKING REMOVAL AS LONG AS THERE ARE ELEMENTS
+      while (auto request = queue_->tryPop()) { 
+
+        active_tasks.push_back(processRequest(std::move(request.value())));
+
+        pending_writes++;
+        processed_this_iteration++;
+
+        if (pending_writes >= BATCH_SIZE) {
+          ring_.submitPendingSQEs();
+          pending_writes = 0;
+        }
+
+        // Prevents too many requests causing this loop to stall and
+        // processCompletions not being called below
+        if (processed_this_iteration >= MAX_MSGS_PER_ITERATION) break;
+      }
+
+      // Submit any remaining writes
+      if (pending_writes > 0) {
+        ring_.submitPendingSQEs();
+        pending_writes = 0;
+      }
+      
+      // Process completions (may dispatch to thread pool)
+      ring_.processCompletions();
+      
+      // Clean up completed tasks
+      active_tasks.erase(
+          std::remove_if(active_tasks.begin(), active_tasks.end(),
+              [](const Coroutine::WriteTask& task) {
+                  return task.done();
+              }),
+          active_tasks.end()
+      );
+      
+      // Only sleep if we're still running normally
+      // During shutdown, process as fast as possible
+      if (!st.stop_requested()) {
+        std::this_thread::sleep_for(std::chrono::microseconds(100));
+      }
     }
+  }
+
+  Coroutine::WriteTask Logger::processRequest(WriteRequest&& request) {
+
+    std::string msg = format(std::move(request));
+
+    // Allocate buffer - TODO: Memory buffer pool here (research)
+    size_t len = msg.size();
+    void* buffer = malloc(len);
+    memcpy(buffer, msg.c_str(), len);
+    
+    // Submit write and wait for completion
+    int bytes_written = co_await ring_.write(file_, buffer, len);
+    
+    // THIS IS RESUMED AFTER THE KERNEL CONSUMES THE CQE
+    // Todo: add possible thread pool task
+    
+   
+    free(buffer);
+    
+    // Handle write result
+    if (bytes_written < 0) {
+        // Log error or handle failed write
+        // Could implement retry logic here
+    }
+    
+    // Could also do other post-write operations:
+    // - Update statistics
+    // - Notify callbacks
+    // - Release semaphores
+    // - Update memory pool
+
+  }
+
+  std::string Logger::format(WriteRequest&& writeRequest) {
+    return fmt::format(
+      "[{}] [{}] [Thread: {}]: {}\n",  
+      writeRequest.timestamp, 
+      sevLvlToStr(writeRequest.level), 
+      writeRequest.threadId, 
+      std::move(writeRequest.data)
+    );
   }
 
   void Logger::info(std::string&& str) {

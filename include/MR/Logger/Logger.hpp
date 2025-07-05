@@ -1,5 +1,6 @@
 #pragma once
 
+#include <MR/Coroutine/WriteTask.hpp>
 #include <string>
 
 #include <MR/Logger/WriteRequest.hpp>
@@ -15,7 +16,10 @@ namespace MR::Logger {
   class Logger {
     private:
 
-      inline static uint16_t QUEUE_SIZE = 8u;
+      // CONFIGURATION
+      inline static constexpr uint16_t QUEUE_SIZE{256u};
+      inline static constexpr uint16_t BATCH_SIZE{10u};
+      inline static constexpr uint16_t MAX_MSGS_PER_ITERATION{10u};
 
       IO::WriteOnlyFile file_;
       IO::IOUring ring_;
@@ -24,8 +28,10 @@ namespace MR::Logger {
       std::jthread worker_;
 
 
-      void consume(std::stop_token);
       void write(SEVERITY_LEVEL, std::string&&);
+      void eventLoop(std::stop_token);
+      std::string format(WriteRequest&& msg);
+      Coroutine::WriteTask processRequest(WriteRequest&&);
 
     public:
 

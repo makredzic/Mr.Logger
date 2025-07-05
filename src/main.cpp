@@ -16,18 +16,19 @@ int main() {
 
   std::thread t1{[&log]() {
     int i = 1;
-    while (i <= 10) {
+    while (i <= 12) {
       std::cout << i << ". Thread Writing to log\n";
       log.info(std::to_string(i) + ". Thread Logging message.");
+    std::this_thread::sleep_for(2ms);
       i++;
     }
   }};
 
   int i = 1;
-  while (i <= 10) {
+  while (i <= 12) {
     std::cout << i << ". Writing to log\n";
     log.info(std::to_string(i) + ". Logging message.");
-    std::this_thread::sleep_for(1ms);
+    std::this_thread::sleep_for(10ms);
     i++;
   }
 
