@@ -7,7 +7,6 @@
 #include <fstream>
 #include <filesystem>
 #include <vector>
-#include <regex>
 
 namespace MR::Logger::Test {
 
@@ -94,22 +93,28 @@ TEST_F(LoggerIntegrationTest, SingleThreadLogging) {
 TEST_F(LoggerIntegrationTest, TwoThreadLogging) {
     Logger logger(config_);
     
-    std::vector<std::string> thread1_messages;
-    std::vector<std::string> thread2_messages;
+    std::vector<std::string> all_messages;
+    std::mutex messages_mutex;
     
-    std::thread t1([&logger, &thread1_messages]() {
+    std::thread t1([&logger, &all_messages, &messages_mutex]() {
         for (int i = 1; i <= 5; ++i) {
             std::string msg = "Thread1-Message" + std::to_string(i);
-            thread1_messages.push_back(msg);
+            {
+                std::lock_guard<std::mutex> lock(messages_mutex);
+                all_messages.push_back(msg);
+            }
             logger.info(msg);
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     });
     
-    std::thread t2([&logger, &thread2_messages]() {
+    std::thread t2([&logger, &all_messages, &messages_mutex]() {
         for (int i = 1; i <= 5; ++i) {
             std::string msg = "Thread2-Message" + std::to_string(i);
-            thread2_messages.push_back(msg);
+            {
+                std::lock_guard<std::mutex> lock(messages_mutex);
+                all_messages.push_back(msg);
+            }
             logger.info(msg);
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
@@ -123,23 +128,18 @@ TEST_F(LoggerIntegrationTest, TwoThreadLogging) {
     auto lines = readLogFile();
     ASSERT_EQ(lines.size(), 10);
     
-    std::vector<std::string> all_expected_messages;
-    all_expected_messages.insert(all_expected_messages.end(), thread1_messages.begin(), thread1_messages.end());
-    all_expected_messages.insert(all_expected_messages.end(), thread2_messages.begin(), thread2_messages.end());
-    
-    std::vector<std::string> actual_messages;
-    for (const auto& line : lines) {
-        std::regex msg_regex(R"(\]: (.+)$)");
-        std::smatch match;
-        if (std::regex_search(line, match, msg_regex)) {
-            actual_messages.push_back(match[1].str());
-        }
+    // First verify all messages exist
+    for (const auto& expected_msg : all_messages) {
+        EXPECT_THAT(lines, testing::Contains(testing::HasSubstr(expected_msg)));
     }
     
-    ASSERT_EQ(actual_messages.size(), 10);
-    
-    for (const auto& expected_msg : all_expected_messages) {
-        EXPECT_THAT(actual_messages, testing::Contains(expected_msg));
+    // Then verify ordering by matching each line to expected messages in sequence
+    size_t expected_index = 0;
+    for (const auto& line : lines) {
+        if (expected_index < all_messages.size()) {
+            EXPECT_THAT(line, testing::HasSubstr(all_messages[expected_index]));
+            expected_index++;
+        }
     }
 }
 
@@ -174,19 +174,18 @@ TEST_F(LoggerIntegrationTest, ThreeThreadLogging) {
     auto lines = readLogFile();
     ASSERT_EQ(lines.size(), 12);
     
-    std::vector<std::string> actual_messages;
-    for (const auto& line : lines) {
-        std::regex msg_regex(R"(\]: (.+)$)");
-        std::smatch match;
-        if (std::regex_search(line, match, msg_regex)) {
-            actual_messages.push_back(match[1].str());
-        }
+    // First verify all messages exist
+    for (const auto& expected_msg : all_messages) {
+        EXPECT_THAT(lines, testing::Contains(testing::HasSubstr(expected_msg)));
     }
     
-    ASSERT_EQ(actual_messages.size(), 12);
-    
-    for (const auto& expected_msg : all_messages) {
-        EXPECT_THAT(actual_messages, testing::Contains(expected_msg));
+    // Then verify ordering by matching each line to expected messages in sequence
+    size_t expected_index = 0;
+    for (const auto& line : lines) {
+        if (expected_index < all_messages.size()) {
+            EXPECT_THAT(line, testing::HasSubstr(all_messages[expected_index]));
+            expected_index++;
+        }
     }
     
     for (const auto& line : lines) {
