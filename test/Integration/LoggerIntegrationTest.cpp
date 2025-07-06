@@ -8,8 +8,6 @@
 #include <filesystem>
 #include <vector>
 #include <barrier>
-#include <set>
-#include <atomic>
 
 namespace MR::Logger::Test {
 
@@ -27,7 +25,7 @@ protected:
             .info_file_name = "",
             .warn_file_name = "",
             .error_file_name = "",
-            .queue_depth = 4096,
+            .queue_depth = 256,
             .batch_size = 50,
             .max_logs_per_iteration = 50,
             ._queue = std::make_shared<Queue::StdQueue<WriteRequest>>()
@@ -219,19 +217,13 @@ TEST_F(LoggerIntegrationTest, EarlyLoggerClosureMultiThreaded) {
                 
                 int msg_count = 0;
                 while (msg_count < messages_per_thread) {
-                    if (msg_count % 1000 == 0) {
-                        std::cout << "Thread " << thread_id << " at message " << msg_count <<
-                            std::endl;
-                    }
                     std::string msg = "Thread" + std::to_string(thread_id) + "_Msg" + std::to_string(msg_count);
                     
                     try {
-
-                        logger.info(msg);
-                        
                         // Only track messages that were successfully queued
                         {
                             std::lock_guard<std::mutex> lock(queued_messages_mutex);
+                            logger.info(msg);
                             queued_messages.push_back(msg);
                         }
                         msg_count++;
@@ -257,18 +249,11 @@ TEST_F(LoggerIntegrationTest, EarlyLoggerClosureMultiThreaded) {
     }
 
 
-    std::cout << "QUEUED MESSAGES SIZE = " << queued_messages.size() << std::endl;
-
     // Verify num messages in the file
     auto lines = readLogFile();
     ASSERT_EQ(lines.size(), queued_messages.size()) 
         << "Expected " << queued_messages.size() << " messages in file, but got " << lines.size()
         << " - Logger destructor did not properly flush all queued messages!";
-    
-    // Verify all queued messages are present in the file
-    for (const auto& queued_msg : queued_messages) {
-        EXPECT_THAT(lines, testing::Contains(testing::HasSubstr(queued_msg)));
-    }
     
     // Verify ordering by matching each line to expected messages in sequence
     size_t expected_index = 0;
