@@ -14,8 +14,12 @@
 #include <MR/Interface/ThreadSafeQueue.hpp>
 #include <memory>
 #include <thread>
+#include <mutex>
 
 namespace MR::Logger {
+
+  // Forward declaration for test class
+  namespace Test { class LoggerIntegrationTest; }
 
   class Logger {
     private:
@@ -40,6 +44,10 @@ namespace MR::Logger {
 
       std::jthread worker_;
 
+      // Private constructor - only accessible through Factory
+      Logger(const Config& = default_config_);
+      friend class Factory;
+      
       Config mergeWithDefault(const Config& user_config);
       void write(SEVERITY_LEVEL, std::string&&);
       void eventLoop(std::stop_token);
@@ -48,7 +56,6 @@ namespace MR::Logger {
 
     public:
 
-      Logger(const Config& = default_config_);
       ~Logger();
       
       Logger(const Logger&) = delete;
@@ -62,5 +69,23 @@ namespace MR::Logger {
       void warn(const std::string& str);
       void error(std::string&& str);
       void error(const std::string& str);
+
+      // Factory class for singleton access
+      class Factory {
+        private:
+          friend class Logger;
+
+          static std::shared_ptr<Logger> instance_;
+          static std::mutex mutex_;
+          static Config stored_config_;
+          static bool config_set_;
+
+        public:
+          static std::shared_ptr<Logger> _get();
+          static void configure(const Config& config);
+          static void _reset();
+      };
+
+      static std::shared_ptr<Logger> get() { return Factory::_get(); }
   };
 }

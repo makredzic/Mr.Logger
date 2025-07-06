@@ -1,4 +1,4 @@
-#include "MR/Logger/Config.hpp"
+#include <MR/Logger/Config.hpp>
 #include <MR/Logger/WriteRequest.hpp>
 #include <MR/Logger/SeverityLevel.hpp>
 #include <MR/Interface/ThreadSafeQueue.hpp>
@@ -202,6 +202,42 @@ void Logger::write(SEVERITY_LEVEL severity, std::string&& str) {
         worker_.request_stop();
         worker_.join(); 
     }
+  }
+
+  // Factory static member definitions
+  std::shared_ptr<Logger> Logger::Factory::instance_ = nullptr;
+  std::mutex Logger::Factory::mutex_;
+  Config Logger::Factory::stored_config_ = {};
+  bool Logger::Factory::config_set_ = false;
+
+  void Logger::Factory::configure(const Config& config) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (instance_) {
+      // Logger already exists, configuration cannot be changed
+      return;
+    }
+    stored_config_ = config;
+    config_set_ = true;
+  }
+
+  std::shared_ptr<Logger> Logger::Factory::_get() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!instance_) {
+      // Lazy initialization
+      if (config_set_) {
+        instance_ = std::shared_ptr<Logger>(new Logger(stored_config_));
+      } else {
+        instance_ = std::shared_ptr<Logger>(new Logger());
+      }
+    }
+    return instance_;
+  }
+
+  void Logger::Factory::_reset() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    instance_.reset();
+    config_set_ = false;
+    stored_config_ = {};
   }
   
 };

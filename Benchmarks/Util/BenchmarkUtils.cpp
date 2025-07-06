@@ -61,15 +61,15 @@ BenchmarkResult benchmark_logger_performance(const MR::Logger::Config& config, c
 
         deleteIfExists(config.log_file_name);
 
-        // Create logger with specified config
-        MR::Logger::Logger logger(config);
+        Logger::Logger::Factory::configure(config);
+        auto logger = MR::Logger::Logger::get();
         
         // Start timing
         auto start = std::chrono::high_resolution_clock::now();
         
-        // Log 10,000 messages
+        // Log messages
         for (size_t i = 1; i <= NUM_MESSAGES; ++i) {
-            logger.info("Benchmark message #" + std::to_string(i));
+            logger->info("Benchmark message #" + std::to_string(i));
         }
         
         // Stop timing

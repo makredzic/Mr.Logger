@@ -30,9 +30,13 @@ protected:
             .max_logs_per_iteration = 50,
             ._queue = std::make_shared<Queue::StdQueue<WriteRequest>>()
         };
+
+        Logger::Factory::_reset();
+        Logger::Factory::configure(config_);
     }
 
     void TearDown() override {
+        Logger::Factory::_reset();
         if (std::filesystem::exists(test_log_file_)) {
             std::filesystem::remove(test_log_file_);
         }
@@ -71,11 +75,11 @@ protected:
 };
 
 TEST_F(LoggerIntegrationTest, SingleThreadLogging) {
-    Logger logger(config_);
+    auto logger = Logger::get();
     
-    logger.info("Message 1");
-    logger.info("Message 2");
-    logger.info("Message 3");
+    logger->info("Message 1");
+    logger->info("Message 2");
+    logger->info("Message 3");
     
     waitForLogCompletion(3);
     
@@ -92,7 +96,7 @@ TEST_F(LoggerIntegrationTest, SingleThreadLogging) {
 }
 
 TEST_F(LoggerIntegrationTest, TwoThreadLogging) {
-    Logger logger(config_);
+    auto logger = Logger::get();
     
     std::vector<std::string> all_messages;
     std::mutex messages_mutex;
@@ -104,7 +108,7 @@ TEST_F(LoggerIntegrationTest, TwoThreadLogging) {
                 std::lock_guard<std::mutex> lock(messages_mutex);
                 all_messages.push_back(msg);
             }
-            logger.info(msg);
+            logger->info(msg);
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     });
@@ -116,7 +120,7 @@ TEST_F(LoggerIntegrationTest, TwoThreadLogging) {
                 std::lock_guard<std::mutex> lock(messages_mutex);
                 all_messages.push_back(msg);
             }
-            logger.info(msg);
+            logger->info(msg);
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     });
@@ -145,7 +149,7 @@ TEST_F(LoggerIntegrationTest, TwoThreadLogging) {
 }
 
 TEST_F(LoggerIntegrationTest, ThreeThreadLogging) {
-    Logger logger(config_);
+    auto logger = Logger::get();
     
     std::vector<std::string> all_messages;
     std::mutex messages_mutex;
@@ -157,7 +161,7 @@ TEST_F(LoggerIntegrationTest, ThreeThreadLogging) {
                 std::lock_guard<std::mutex> lock(messages_mutex);
                 all_messages.push_back(msg);
             }
-            logger.info(msg);
+            logger->info(msg);
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
     };
@@ -207,8 +211,8 @@ TEST_F(LoggerIntegrationTest, EarlyLoggerClosureMultiThreaded) {
     
     // Create a scope to control logger lifetime
     {
-        Logger logger{config_};
-        
+        auto logger = Logger::get();
+
         // Launch threads that write messages
         for (int thread_id = 0; thread_id < num_threads; ++thread_id) {
             threads.emplace_back([&, thread_id]() {
@@ -223,7 +227,7 @@ TEST_F(LoggerIntegrationTest, EarlyLoggerClosureMultiThreaded) {
                         // Only track messages that were successfully queued
                         {
                             std::lock_guard<std::mutex> lock(queued_messages_mutex);
-                            logger.info(msg);
+                            logger->info(msg);
                             queued_messages.push_back(msg);
                         }
                         msg_count++;
@@ -248,6 +252,8 @@ TEST_F(LoggerIntegrationTest, EarlyLoggerClosureMultiThreaded) {
         }
     }
 
+    // FORCE SHUTDOWN OF LOGGER
+    Logger::Factory::_reset();
 
     // Verify num messages in the file
     auto lines = readLogFile();

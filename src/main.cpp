@@ -11,13 +11,13 @@ using namespace std::chrono_literals;
 
 int main() {
 
-  MR::Logger::Logger log{};
+  auto log = MR::Logger::Logger::get();
 
   std::thread t1{[&log]() {
     int i = 1;
     while (i <= 12) {
       std::cout << i << ". Thread Writing to log\n";
-      log.info(std::to_string(i) + ". Thread Logging message.");
+      log->info(std::to_string(i) + ". Thread Logging message.");
       std::this_thread::sleep_for(2ms);
       i++;
     }
@@ -26,7 +26,7 @@ int main() {
   int i = 1;
   while (i <= 12) {
     std::cout << i << ". Writing to log\n";
-    log.info(std::to_string(i) + ". Logging message.");
+    log->info(std::to_string(i) + ". Logging message.");
     std::this_thread::sleep_for(10ms);
     i++;
   }
