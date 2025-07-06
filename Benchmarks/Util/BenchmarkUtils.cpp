@@ -1,4 +1,5 @@
 #include "BenchmarkUtils.hpp"
+
 #include <MR/Logger/Logger.hpp>
 #include <iostream>
 #include <fstream>
@@ -8,8 +9,32 @@
 #include <thread>
 #include <sstream>
 #include <iomanip>
+#include <vector>
+#include <barrier>
 
 namespace MR::Benchmarks {
+
+void waitForLogCompletion(int expected_messages, const std::string& log_file_name) {
+    auto start = std::chrono::steady_clock::now();
+    const std::chrono::seconds timeout{5};
+    
+    while (std::chrono::steady_clock::now() - start < timeout) {
+        if (std::filesystem::exists(log_file_name)) {
+            std::ifstream file(log_file_name);
+            std::string line;
+            int line_count = 0;
+            
+            while (std::getline(file, line)) {
+                line_count++;
+            }
+            
+            if (line_count >= expected_messages) {
+                return;
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+}
 
 
 void deleteIfExists(const std::string& filename) {
@@ -82,15 +107,80 @@ BenchmarkResult benchmark_logger_performance(const MR::Logger::Config& config, c
         double seconds = static_cast<double>(duration.count()) / 1e9;
         double messages_per_second = NUM_MESSAGES / seconds;
         
-        // Wait a bit for async logging to complete
-        std::this_thread::sleep_for(std::chrono::milliseconds(NUM_MESSAGES / 1000));
-        
         // Simple stdout output - just name and duration
         std::cout << benchmark_name << ": " << (duration.count() / 1e6) << " ms" << std::endl;
         
         BenchmarkResult result{
             duration,
             NUM_MESSAGES,
+            messages_per_second,
+            benchmark_name,
+            config.log_file_name,
+            config.queue_depth,
+            config.batch_size,
+            config.max_logs_per_iteration
+        };
+        
+        // Save results to JSON
+        save_results_to_json(result);
+        
+        return result;
+    }
+}
+
+BenchmarkResult benchmark_logger_performance_multithreaded(const MR::Logger::Config& config, const std::string& benchmark_name, size_t num_threads, size_t messages_per_thread) {
+    const size_t total_messages = num_threads * messages_per_thread;
+    
+    {
+        deleteIfExists(config.log_file_name);
+
+        Logger::Logger::Factory::configure(config);
+        auto logger = MR::Logger::Logger::get();
+        
+        // Create barrier to synchronize thread start
+        std::barrier sync_point(static_cast<std::ptrdiff_t>(num_threads));
+        
+        // Vector to store threads
+        std::vector<std::thread> threads;
+        threads.reserve(num_threads);
+        
+        // Start timing
+        auto start = std::chrono::high_resolution_clock::now();
+        
+        // Create and start threads
+        for (size_t thread_id = 0; thread_id < num_threads; ++thread_id) {
+            threads.emplace_back([&sync_point, logger, messages_per_thread]() {
+                // Wait for all threads to be ready
+                sync_point.arrive_and_wait();
+                
+                // Log messages
+                for (size_t i = 1; i <= messages_per_thread; ++i) {
+                    logger->info("Benchmark #1");
+                }
+            });
+        }
+        
+        // Wait for all threads to complete
+        for (auto& thread : threads) {
+            thread.join();
+        }
+        
+        // Stop timing
+        auto end = std::chrono::high_resolution_clock::now();
+        
+        // Calculate duration
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+        
+        // Calculate messages per second
+        double seconds = static_cast<double>(duration.count()) / 1e9;
+        double messages_per_second = total_messages / seconds;
+        
+        // Simple stdout output - just name and duration
+        std::cout << benchmark_name << ": " << (duration.count() / 1e6) << " ms" << std::endl;
+        
+        BenchmarkResult result{
+            duration,
+            total_messages,
             messages_per_second,
             benchmark_name,
             config.log_file_name,

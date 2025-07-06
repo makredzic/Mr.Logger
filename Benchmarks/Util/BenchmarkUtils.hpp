@@ -18,6 +18,7 @@ struct BenchmarkResult {
 };
 
 BenchmarkResult benchmark_logger_performance(const MR::Logger::Config& config, const std::string& benchmark_name);
+BenchmarkResult benchmark_logger_performance_multithreaded(const MR::Logger::Config& config, const std::string& benchmark_name, size_t num_threads = 10, size_t messages_per_thread = 100000);
 void save_results_to_json(const BenchmarkResult& result, const std::string& results_dir = "Results");
 
 void deleteIfExists(const std::string& filename);

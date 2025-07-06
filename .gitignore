@@ -4,3 +4,5 @@ build
 
 subprojects/*
 !subprojects/*.wrap
+
+spdlog-research
