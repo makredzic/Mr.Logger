@@ -41,15 +41,16 @@ void deleteIfExists(const std::string& filename) {
     std::filesystem::path filePath = std::filesystem::current_path() / filename;
 
     if (std::filesystem::exists(filePath)) {
-        std::cout << "File exists: " << filePath << ", deleting...\n";
+        // std::cout << "File exists: " << filePath << ", deleting...\n";
         std::filesystem::remove(filePath); // returns true if file was deleted
     } else {
         std::cout << "File does not exist: " << filePath << "\n";
     }
 }
 
-void save_results_to_json(const BenchmarkResult& result, const std::string& results_dir) {
+void save_results_to_json(const BenchmarkResult& result, int num_of_threads) {
     // Create results directory if it doesn't exist
+    std::string results_dir{"BenchmarkResults"};
     std::filesystem::create_directories(results_dir);
     
     // Generate timestamp for unique filename
@@ -65,6 +66,7 @@ void save_results_to_json(const BenchmarkResult& result, const std::string& resu
     std::ofstream json_file(filename.str());
     json_file << "{\n";
     json_file << "  \"benchmark_name\": \"" << result.benchmark_name << "\",\n";
+    json_file << "  \"threads\": " << num_of_threads << ",\n";
     json_file << "  \"duration_ns\": " << result.duration.count() << ",\n";
     json_file << "  \"duration_ms\": " << (result.duration.count() / 1e6) << ",\n";
     json_file << "  \"messages_logged\": " << result.messages_logged << ",\n";
@@ -122,7 +124,7 @@ BenchmarkResult benchmark_logger_performance(const MR::Logger::Config& config, c
         };
         
         // Save results to JSON
-        save_results_to_json(result);
+        save_results_to_json(result, 1);
         
         return result;
     }
@@ -190,7 +192,7 @@ BenchmarkResult benchmark_logger_performance_multithreaded(const MR::Logger::Con
         };
         
         // Save results to JSON
-        save_results_to_json(result);
+        save_results_to_json(result, num_threads);
         
         return result;
     }
