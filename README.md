@@ -150,7 +150,7 @@ int main() {
 
 ## Research Context
 
-This project is part of a Master's thesis comparing high-performance logging libraries. The `spdlog-research/` directory contains the spdlog library for performance comparison benchmarking.
+This project is part of a Master's thesis analyzing the performance of a fully async logger that utilizes C++20 Coroutines and IO_URING.
 
 ## Development Guidelines
 
@@ -171,7 +171,7 @@ This project is part of a Master's thesis comparing high-performance logging lib
 - Batch I/O operations for throughput
 - Consider NUMA topology for multi-threaded scenarios
 
-## Future Enhancements
+## (Possible) Future Enhancements
 
 - **Memory Pool**: Buffer pooling to reduce malloc/free overhead
 - **Lock-free Queues**: Integration with moodycamel::ConcurrentQueue
@@ -185,4 +185,4 @@ This project is part of a Master's thesis comparing high-performance logging lib
 - **Linux**: Required for io_uring support
 - **Compiler**: GCC 11+ or Clang 12+ with C++20 support
 - **Kernel**: Linux 5.1+ for io_uring support
-- **Architecture**: x86_64 (primary), ARM64 (planned)
+- **Architecture**: x86_64 (primary)
