@@ -7,8 +7,6 @@
 #include <string>
 #include <filesystem>
 #include <thread>
-#include <sstream>
-#include <iomanip>
 #include <vector>
 #include <barrier>
 
@@ -41,11 +39,21 @@ void deleteIfExists(const std::string& filename) {
     std::filesystem::path filePath = std::filesystem::current_path() / filename;
 
     if (std::filesystem::exists(filePath)) {
-        // std::cout << "File exists: " << filePath << ", deleting...\n";
-        std::filesystem::remove(filePath); // returns true if file was deleted
-    } else {
-        std::cout << "File does not exist: " << filePath << "\n";
-    }
+        std::filesystem::remove(filePath);
+    } 
+}
+
+std::string get_next_filename(const std::string& base_name, const std::string& extension) {
+    std::string results_dir{"BenchmarkResults"};
+    int counter = 1;
+    std::string filename;
+    
+    do {
+        filename = results_dir + "/" + base_name + std::to_string(counter) + extension;
+        counter++;
+    } while (std::filesystem::exists(filename));
+    
+    return filename;
 }
 
 void save_results_to_json(const BenchmarkResult& result, int num_of_threads) {
@@ -53,17 +61,10 @@ void save_results_to_json(const BenchmarkResult& result, int num_of_threads) {
     std::string results_dir{"BenchmarkResults"};
     std::filesystem::create_directories(results_dir);
     
-    // Generate timestamp for unique filename
-    auto now = std::chrono::system_clock::now();
-    auto time_t = std::chrono::system_clock::to_time_t(now);
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+    // Generate filename with incrementing number
+    std::string filename = get_next_filename(result.benchmark_name, ".json");
     
-    std::stringstream filename;
-    filename << results_dir << "/" << result.benchmark_name << "_" 
-             << std::put_time(std::localtime(&time_t), "%Y%m%d_%H%M%S") 
-             << "_" << std::setfill('0') << std::setw(3) << ms.count() << ".json";
-    
-    std::ofstream json_file(filename.str());
+    std::ofstream json_file(filename);
     json_file << "{\n";
     json_file << "  \"benchmark_name\": \"" << result.benchmark_name << "\",\n";
     json_file << "  \"threads\": " << num_of_threads << ",\n";
