@@ -45,14 +45,6 @@ else
     git clone "$REPO_URL" repo
 fi
 
-# Copy benchmark runner script
-echo "Setting up benchmark runner..."
-cp repo/benchmark_runner.py . 2>/dev/null || {
-    echo "benchmark_runner.py not found in repo, creating it..."
-    # The Python script content would be written here if not in repo
-    # For now, we assume it's been added to the repo
-}
-
 # Create virtual environment for Python dependencies
 echo "Setting up Python environment..."
 python3 -m venv venv

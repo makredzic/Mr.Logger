@@ -108,7 +108,7 @@ void Logger::write(SEVERITY_LEVEL severity, std::string&& str) {
         pending_writes = 0;
       }
       
-      // Process CQEs (may dispatch to thread pool)
+      // Process CQEs (maybe dispatch to thread pool)
       ring_.processCompletions();
       
       // Clean up completed tasks

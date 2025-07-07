@@ -6,3 +6,5 @@ subprojects/*
 !subprojects/*.wrap
 
 spdlog-research
+BenchmarkPlots
+BenchmarkResults

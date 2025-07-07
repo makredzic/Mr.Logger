@@ -63,15 +63,6 @@ class BenchmarkRunner:
         subprocess.run(["sudo", "update-alternatives", "--install", "/usr/bin/gcc", "gcc", "/usr/bin/gcc-11", "100"], check=True)
         subprocess.run(["sudo", "update-alternatives", "--install", "/usr/bin/g++", "g++", "/usr/bin/g++-11", "100"], check=True)
         
-        # Install Python dependencies from requirements.txt
-        print("Installing Python dependencies from requirements.txt...")
-        requirements_path = self.repo_path / "requirements.txt"
-        if requirements_path.exists():
-            subprocess.run([sys.executable, "-m", "pip", "install", "-r", str(requirements_path)], check=True)
-        else:
-            print("requirements.txt not found, installing default packages...")
-            subprocess.run([sys.executable, "-m", "pip", "install", "matplotlib>=3.5.0", "pandas>=1.4.0", "numpy>=1.21.0", "seaborn>=0.12.0"], check=True)
-        
         print("Dependencies installed successfully!")
         
     def setup_meson_build(self):

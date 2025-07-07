@@ -10,7 +10,6 @@ class WriteTask {
   public:
 
     struct promise_type {
-      int result = -1;
       std::exception_ptr exception;
       
       inline WriteTask get_return_object() {
