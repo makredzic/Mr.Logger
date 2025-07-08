@@ -73,9 +73,6 @@ SpdlogBenchmarkResult benchmark_spdlog_performance(const SpdlogBenchmarkConfig& 
         logger->info("Benchmark message #{}", i);
     }
     
-    // Force flush to ensure all messages are written
-    logger->flush();
-    
     // End timing
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time);
@@ -143,9 +140,6 @@ SpdlogBenchmarkResult benchmark_spdlog_performance_multithreaded(const SpdlogBen
     for (auto& thread : threads) {
         thread.join();
     }
-    
-    // Force flush to ensure all messages are written
-    logger->flush();
     
     // End timing
     auto end_time = std::chrono::high_resolution_clock::now();
