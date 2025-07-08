@@ -36,7 +36,9 @@ class BenchmarkRunner:
             "BenchmarkLarge",
             "BenchmarkDefaultMultithread",
             "BenchmarkSmallMultithread",
-            "BenchmarkLargeMultithread"
+            "BenchmarkLargeMultithread",
+            "BenchmarkSpdlog",
+            "BenchmarkSpdlogMultithread"
         ]
         
     def install_dependencies(self):

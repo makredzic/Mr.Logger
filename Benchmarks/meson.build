@@ -14,6 +14,12 @@ benchmark_executables = [
   'BenchmarkLargeMultithread.cpp'
 ]
 
+# List of spdlog benchmark executables to build
+spdlog_benchmark_executables = [
+  'BenchmarkSpdlog.cpp',
+  'BenchmarkSpdlogMultithread.cpp'
+]
+
 # Build each benchmark executable and store references
 benchmark_exes = []
 foreach exe_src : benchmark_executables
@@ -29,6 +35,23 @@ foreach exe_src : benchmark_executables
   
   # Store executable reference for custom targets
   benchmark_exes += exe
+endforeach
+
+# Build spdlog benchmark executables and store references
+spdlog_benchmark_exes = []
+foreach exe_src : spdlog_benchmark_executables
+  # Extract executable name from source filename
+  exe_name = exe_src.split('.')[0]
+  
+  exe = executable(exe_name,
+    [spdlog_benchmark_util_sources, files(exe_src)],
+    include_directories: incdir,
+    dependencies: deps,
+    install: false
+  )
+  
+  # Store executable reference for custom targets
+  spdlog_benchmark_exes += exe
 endforeach
 
 # Custom target to run default benchmark
@@ -67,6 +90,18 @@ run_target('bench-large-multi',
   depends: benchmark_exes[5]
 )
 
+# Custom target to run spdlog benchmark
+run_target('bench-spdlog',
+  command: [spdlog_benchmark_exes[0]],
+  depends: spdlog_benchmark_exes[0]
+)
+
+# Custom target to run spdlog multithread benchmark
+run_target('bench-spdlog-multi',
+  command: [spdlog_benchmark_exes[1]],
+  depends: spdlog_benchmark_exes[1]
+)
+
 # Custom target to run all benchmarks sequentially
 run_target('benchmarks',
   command: [
@@ -79,4 +114,14 @@ run_target('benchmarks',
     benchmark_exes[5].full_path()
   ],
   depends: benchmark_exes
+)
+
+# Custom target to run all spdlog benchmarks sequentially
+run_target('spdlog-benchmarks',
+  command: [
+    'sh', '-c', 
+    spdlog_benchmark_exes[0].full_path() + ' && ' + 
+    spdlog_benchmark_exes[1].full_path()
+  ],
+  depends: spdlog_benchmark_exes
 )
