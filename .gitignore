@@ -8,3 +8,4 @@ subprojects/*
 spdlog-research
 BenchmarkPlots
 BenchmarkResults
+*.log
