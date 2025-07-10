@@ -3,6 +3,7 @@
 #include <MR/Logger/SeverityLevel.hpp>
 #include <MR/Interface/ThreadSafeQueue.hpp>
 #include <MR/Logger/Logger.hpp>
+#include <MR/Logger/BufferPool.hpp>
 #include <MR/Coroutine/WriteTask.hpp>
 
 
@@ -46,6 +47,30 @@ Config Logger::mergeWithDefault(const Config& user_config) {
   .max_logs_per_iteration = user_config.max_logs_per_iteration == 0
     ? default_config_.max_logs_per_iteration
     : user_config.max_logs_per_iteration,
+
+  .small_buffer_pool_size = user_config.small_buffer_pool_size == 0
+    ? default_config_.small_buffer_pool_size
+    : user_config.small_buffer_pool_size,
+
+  .medium_buffer_pool_size = user_config.medium_buffer_pool_size == 0
+    ? default_config_.medium_buffer_pool_size
+    : user_config.medium_buffer_pool_size,
+
+  .large_buffer_pool_size = user_config.large_buffer_pool_size == 0
+    ? default_config_.large_buffer_pool_size
+    : user_config.large_buffer_pool_size,
+
+  .small_buffer_size = user_config.small_buffer_size == 0
+    ? default_config_.small_buffer_size
+    : user_config.small_buffer_size,
+
+  .medium_buffer_size = user_config.medium_buffer_size == 0
+    ? default_config_.medium_buffer_size
+    : user_config.medium_buffer_size,
+
+  .large_buffer_size = user_config.large_buffer_size == 0
+    ? default_config_.large_buffer_size
+    : user_config.large_buffer_size,
 
   ._queue = user_config._queue == nullptr
     ? default_config_._queue
@@ -130,21 +155,24 @@ void Logger::write(SEVERITY_LEVEL severity, std::string&& str) {
 
   Coroutine::WriteTask Logger::processRequest(WriteRequest&& request) {
 
-    std::string msg = format(std::move(request));
-
-    // Allocate buffer - TODO: Memory buffer pool here (research)
-    size_t len = msg.size();
-    void* buffer = malloc(len);
-    memcpy(buffer, msg.c_str(), len);
+    // Estimate required buffer size (with some padding for safety)
+    size_t estimated_size = request.data.size() + 256; // Extra for timestamp, level, thread ID
+    
+    // Acquire buffer from pool
+    auto buffer = buffer_pool_.acquire(estimated_size);
+    
+    // Format directly into buffer
+    size_t actual_size = formatTo(std::move(request), buffer->as_char(), buffer->capacity);
+    buffer->size = actual_size;
     
     // Submit write and wait for completion
-    int bytes_written = co_await ring_.write(file_, buffer, len);
+    int bytes_written = co_await ring_.write(file_, buffer->data, buffer->size);
     
     // THIS IS RESUMED AFTER THE KERNEL CONSUMES THE CQE
     // Todo: add possible thread pool task
     
-   
-    free(buffer);
+    // Return buffer to pool
+    buffer_pool_.release(std::move(buffer));
     
     // Handle write result
     if (bytes_written < 0) {
@@ -160,14 +188,23 @@ void Logger::write(SEVERITY_LEVEL severity, std::string&& str) {
 
   }
 
-  std::string Logger::format(WriteRequest&& writeRequest) {
-    return fmt::format(
+  size_t Logger::formatTo(WriteRequest&& writeRequest, char* buffer, size_t capacity) {
+
+    auto result = fmt::format_to_n(
+      buffer, capacity - 1,  // Reserve space for null terminator
       "[{}] [{}] [Thread: {}]: {}\n",  
       writeRequest.timestamp, 
       sevLvlToStr(writeRequest.level), 
       writeRequest.threadId, 
       std::move(writeRequest.data)
     );
+    
+    // Null terminate (myb not necessary for io_uring??)
+    if (result.size < capacity) {
+      buffer[result.size] = '\0';
+    }
+    
+    return result.size;
   }
 
   void Logger::info(std::string&& str) {

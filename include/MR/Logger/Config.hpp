@@ -32,6 +32,13 @@ namespace MR::Logger {
     // and will start processing CQEs
     uint16_t max_logs_per_iteration;
 
+    // Buffer pool configuration
+    uint16_t small_buffer_pool_size;
+    uint16_t medium_buffer_pool_size;
+    uint16_t large_buffer_pool_size;
+    uint16_t small_buffer_size;
+    uint16_t medium_buffer_size;
+    uint16_t large_buffer_size;
 
     // For experimentation, different implementations of a ThreadSafeQueue can be used, e.g.
     // 1) StdQueue - my mutex/lock based std::queue wrapper

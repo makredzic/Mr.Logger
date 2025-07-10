@@ -1,6 +1,7 @@
 #pragma once
 
 #include <MR/Logger/Config.hpp>
+#include <MR/Logger/BufferPool.hpp>
 #include <MR/Coroutine/WriteTask.hpp>
 
 #include <string>
@@ -33,6 +34,12 @@ namespace MR::Logger {
         .queue_depth = 256u,
         .batch_size = 10u,
         .max_logs_per_iteration = 10u,
+        .small_buffer_pool_size = 128u,
+        .medium_buffer_pool_size = 64u,
+        .large_buffer_pool_size = 32u,
+        .small_buffer_size = 1024u,
+        .medium_buffer_size = 4096u,
+        .large_buffer_size = 16384u,
         ._queue = std::make_shared<Queue::StdQueue<WriteRequest>>(),
       };
 
@@ -41,6 +48,7 @@ namespace MR::Logger {
       IO::WriteOnlyFile file_;
       IO::IOUring ring_;
       std::shared_ptr<Interface::ThreadSafeQueue<WriteRequest>> queue_;
+      BufferPool buffer_pool_;
 
       std::jthread worker_;
 
@@ -51,7 +59,7 @@ namespace MR::Logger {
       Config mergeWithDefault(const Config& user_config);
       void write(SEVERITY_LEVEL, std::string&&);
       void eventLoop(std::stop_token);
-      std::string format(WriteRequest&& msg);
+      size_t formatTo(WriteRequest&& msg, char* buffer, size_t capacity);
       Coroutine::WriteTask processRequest(WriteRequest&&);
 
     public:
