@@ -1,7 +1,7 @@
 #pragma once
 
 #include <MR/Logger/Config.hpp>
-#include <MR/Logger/BufferPool.hpp>
+#include <MR/Memory/BufferPool.hpp>
 #include <MR/Coroutine/WriteTask.hpp>
 
 #include <string>
@@ -18,6 +18,7 @@
 #include <mutex>
 
 namespace MR::Logger {
+  using namespace MR::Memory;
 
   // Forward declaration for test class
   namespace Test { class LoggerIntegrationTest; }

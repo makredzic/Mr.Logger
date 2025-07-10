@@ -3,7 +3,7 @@
 #include <MR/Logger/SeverityLevel.hpp>
 #include <MR/Interface/ThreadSafeQueue.hpp>
 #include <MR/Logger/Logger.hpp>
-#include <MR/Logger/BufferPool.hpp>
+#include <MR/Memory/BufferPool.hpp>
 #include <MR/Coroutine/WriteTask.hpp>
 
 

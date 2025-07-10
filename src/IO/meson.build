@@ -1,3 +1,3 @@
-iouring_sources += files(
+src_files += files(
   'IOUring/IOUring.cpp'
 )

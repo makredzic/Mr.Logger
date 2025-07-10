@@ -3,10 +3,11 @@
 # source_files gets hoisted to the root meson.build
 # these source files can actually be used
 
-iouring_sources = []
+src_files = []
 
 subdir('IO')
 subdir('Logger')
+subdir('Memory')
 
 # Expose library sources to parent
-lib_src = iouring_sources 
+lib_src = src_files 

@@ -1,6 +1,6 @@
-#include <MR/Logger/BufferPool.hpp>
+#include <MR/Memory/BufferPool.hpp>
 
-namespace MR::Logger {
+namespace MR::Memory {
 
 BufferPool::BufferPool() 
     : small_pool_(SMALL_POOL_SIZE, SMALL_BUFFER_SIZE),
@@ -70,4 +70,4 @@ std::unique_ptr<Buffer> BufferPool::createBuffer(size_t size) {
     return std::make_unique<Buffer>(size);
 }
 
-} // namespace MR::Logger
+} // namespace MR::Memory

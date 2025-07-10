@@ -1,4 +1,3 @@
-iouring_sources += files(
-  'Logger.cpp',
-  'BufferPool.cpp'
+src_files += files(
+  'Logger.cpp'
 )
