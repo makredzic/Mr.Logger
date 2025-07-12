@@ -1,5 +1,9 @@
 #pragma once
 
+#include <fmt/format.h>
+#include <fmt/compile.h>
+
+#include "MR/Logger/SeverityLevel.hpp"
 #include <MR/Logger/Config.hpp>
 #include <MR/Memory/BufferPool.hpp>
 #include <MR/Coroutine/WriteTask.hpp>
@@ -16,6 +20,20 @@
 #include <memory>
 #include <thread>
 #include <mutex>
+
+// The same macro from before
+#define REGISTER_MR_LOGGER_TO_STRING(type, lambda) \
+  template<> \
+  struct fmt::formatter<type> { \
+    constexpr auto parse(format_parse_context& ctx) -> decltype(ctx.begin()) { \
+      return ctx.end(); \
+    } \
+    template<typename FormatContext> \
+    auto format(const type& obj, FormatContext& ctx) const -> decltype(ctx.out()) { \
+      return fmt::format_to(ctx.out(), "{}", lambda(obj)); \
+    } \
+  };
+
 
 namespace MR::Logger {
   using namespace MR::Memory;
@@ -58,12 +76,56 @@ namespace MR::Logger {
       friend class Factory;
       
       Config mergeWithDefault(const Config& user_config);
-      void write(SEVERITY_LEVEL, std::string&&);
       void eventLoop(std::stop_token);
       size_t formatTo(WriteRequest&& msg, char* buffer, size_t capacity);
       Coroutine::WriteTask processRequest(WriteRequest&&);
 
+      template<typename T>
+      inline void write(SEVERITY_LEVEL severity, T&& data) {
+        WriteRequest req{
+          .level = severity,
+          .data = std::forward<T>(data),
+          .threadId = std::this_thread::get_id(),
+          .timestamp = std::chrono::system_clock::now()
+        };
+        queue_->push(std::move(req));
+      }
+
     public:
+
+      template<typename... Args>
+      inline void info(fmt::format_string<Args...> fmt_str, Args&&... args) {
+        write(SEVERITY_LEVEL::INFO, fmt::format(fmt_str, std::forward<Args>(args)...));
+      }
+
+      template<typename T>
+      inline void info(T&& str) 
+        requires std::is_convertible_v<std::remove_cvref_t<T>, std::string> {
+        write(SEVERITY_LEVEL::INFO, std::forward<T>(str));
+      }
+
+      template<typename... Args>
+      inline void warn(fmt::format_string<Args...> fmt_str, Args&&... args) {
+        write(SEVERITY_LEVEL::WARN, fmt::format(fmt_str, std::forward<Args>(args)...));
+      }
+
+      template<typename T>
+      inline void warn(T&& str) 
+        requires std::is_convertible_v<std::remove_cvref_t<T>, std::string> {
+        write(SEVERITY_LEVEL::WARN, std::forward<T>(str));
+      }
+
+      template<typename... Args>
+      inline void error(fmt::format_string<Args...> fmt_str, Args&&... args) {
+        write(SEVERITY_LEVEL::ERROR, fmt::format(fmt_str, std::forward<Args>(args)...));
+      }
+
+      template<typename T>
+      inline void error(T&& str) 
+        requires std::is_convertible_v<std::remove_cvref_t<T>, std::string> {
+        write(SEVERITY_LEVEL::ERROR, std::forward<T>(str));
+      }
+
 
       ~Logger();
       
@@ -72,8 +134,6 @@ namespace MR::Logger {
       Logger& operator=(Logger&&) = delete;
       Logger& operator=(const Logger&) = delete;
 
-      void info(std::string&& str);
-      void info(const std::string& str);
       void warn(std::string&& str);
       void warn(const std::string& str);
       void error(std::string&& str);

@@ -86,7 +86,6 @@ BenchmarkResult benchmark_logger_performance(const MR::Logger::Config& config, c
     const size_t NUM_MESSAGES = 1000000;
     
     {
-
         deleteIfExists(config.log_file_name);
 
         Logger::Logger::Factory::configure(config);
@@ -97,7 +96,7 @@ BenchmarkResult benchmark_logger_performance(const MR::Logger::Config& config, c
         
         // Log messages
         for (size_t i = 1; i <= NUM_MESSAGES; ++i) {
-            logger->info("Benchmark message #" + std::to_string(i));
+            logger->info("Benchmark message #{}", i);
         }
         
         // Stop timing

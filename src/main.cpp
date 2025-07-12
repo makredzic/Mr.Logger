@@ -2,37 +2,34 @@
 #include <MR/Logger/WriteRequest.hpp>
 #include <MR/IO/IOUring.hpp>
 #include <MR/IO/WriteOnlyFile.hpp>
-#include <thread>
-#include <iostream>
 #include <MR/Logger/Logger.hpp>
+#include <string>
 
 using namespace MR::IO;
 using namespace std::chrono_literals;
+
+// Example custom struct
+struct Point { 
+  int a; 
+  int b; 
+};
+
+std::string toStr(const Point& pt) { return std::string{"a = " + std::to_string(pt.a) + "b = " + std::to_string(pt.b)}; }
+REGISTER_MR_LOGGER_TO_STRING(Point, toStr)
+
 
 int main() {
 
   auto log = MR::Logger::Logger::get();
 
-  std::thread t1{[&log]() {
-    int i = 1;
-    while (i <= 12) {
-      std::cout << i << ". Thread Writing to log\n";
-      log->info(std::to_string(i) + ". Thread Logging message.");
-      std::this_thread::sleep_for(2ms);
-      i++;
-    }
-  }};
+  log->info("Test 1");
+  log->info("Test {}", 2);
+  log->info("Test {} + {} = {}", 1, 2, 3);
 
-  int i = 1;
-  while (i <= 12) {
-    std::cout << i << ". Writing to log\n";
-    log->info(std::to_string(i) + ". Logging message.");
-    std::this_thread::sleep_for(10ms);
-    i++;
-  }
 
-  // WAITS FOR LOGGING TO FINISH
-  t1.join();
+  Point pt{6,9};
+  log->info("My point = {}", pt); 
+
 
   return 0;
 }

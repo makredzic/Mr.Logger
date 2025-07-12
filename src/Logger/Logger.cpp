@@ -85,19 +85,6 @@ Logger::Logger(const Config& config) :
   queue_{config_._queue},
   worker_{[this](std::stop_token st){ eventLoop(st); }} {}
 
-void Logger::write(SEVERITY_LEVEL severity, std::string&& str) {
-
-    WriteRequest req{
-      .level = severity, 
-      .data = std::move(str),
-      .threadId = std::this_thread::get_id(),
-      .timestamp = std::chrono::system_clock::now()
-    };
-
-    queue_->push(std::move(req));
-    return;
-  }
-
   void Logger::eventLoop(std::stop_token st) {
 
     // Required to hold the state of the coroutines while they
@@ -207,29 +194,6 @@ void Logger::write(SEVERITY_LEVEL severity, std::string&& str) {
     return result.size;
   }
 
-  void Logger::info(std::string&& str) {
-    write(SEVERITY_LEVEL::INFO, std::move(str));
-  }
-
-  void Logger::info(const std::string& str) {
-    write(SEVERITY_LEVEL::INFO, std::string(str));
-  }
-
-  void Logger::warn(std::string&& str) {
-    write(SEVERITY_LEVEL::WARN, std::move(str));
-  }
-
-  void Logger::warn(const std::string& str) {
-    write(SEVERITY_LEVEL::WARN, std::string(str));
-  }
-
-  void Logger::error(std::string&& str) {
-    write(SEVERITY_LEVEL::ERROR, std::move(str));
-  }
-
-  void Logger::error(const std::string& str) {
-    write(SEVERITY_LEVEL::ERROR, std::string(str));
-  }
 
   Logger::~Logger() {
 
