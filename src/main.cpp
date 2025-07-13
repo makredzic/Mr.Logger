@@ -15,7 +15,7 @@ struct Point {
 };
 
 std::string toStr(const Point& pt) { return std::string{"a = " + std::to_string(pt.a) + "b = " + std::to_string(pt.b)}; }
-REGISTER_MR_LOGGER_TO_STRING(Point, toStr)
+MRLOGGER_TO_STRING(Point, toStr)
 
 
 int main() {

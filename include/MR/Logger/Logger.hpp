@@ -22,7 +22,7 @@
 #include <mutex>
 
 // The same macro from before
-#define REGISTER_MR_LOGGER_TO_STRING(type, lambda) \
+#define MRLOGGER_TO_STRING(type, lambda) \
   template<> \
   struct fmt::formatter<type> { \
     constexpr auto parse(format_parse_context& ctx) -> decltype(ctx.begin()) { \
