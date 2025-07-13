@@ -31,12 +31,12 @@ protected:
             ._queue = std::make_shared<Queue::StdQueue<WriteRequest>>()
         };
 
-        Logger::Factory::_reset();
-        Logger::Factory::configure(config_);
+        Logger::_reset();
+        Logger::init(config_);
     }
 
     void TearDown() override {
-        Logger::Factory::_reset();
+        Logger::_reset();
         if (std::filesystem::exists(test_log_file_)) {
             std::filesystem::remove(test_log_file_);
         }
@@ -253,7 +253,7 @@ TEST_F(LoggerIntegrationTest, EarlyLoggerClosureMultiThreaded) {
     }
 
     // FORCE SHUTDOWN OF LOGGER
-    Logger::Factory::_reset();
+    Logger::_reset();
 
     // Verify num messages in the file
     auto lines = readLogFile();

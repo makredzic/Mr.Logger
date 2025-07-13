@@ -139,22 +139,30 @@ namespace MR::Logger {
       void error(std::string&& str);
       void error(const std::string& str);
 
+    private:
       // Factory class for singleton access
       class Factory {
-        private:
-          friend class Logger;
+        friend class Logger;
 
-          static std::shared_ptr<Logger> instance_;
-          static std::mutex mutex_;
-          static Config stored_config_;
-          static bool config_set_;
+        static std::shared_ptr<Logger> instance_;
+        static std::mutex mutex_;
+        static Config stored_config_;
+        static bool config_set_;
 
-        public:
-          static std::shared_ptr<Logger> _get();
-          static void configure(const Config& config);
-          static void _reset();
+        static std::shared_ptr<Logger> _get();
+        static void configure(Config&& config);
+        static void _reset();
       };
 
+    public:
+      static void init(Config&& config);
+      static void init(const Config& config);
       static std::shared_ptr<Logger> get() { return Factory::_get(); }
+
+      /*
+        Should never be called. Destroys the shared_ptr instance but does not guarantee logger shutdown due to ref counting.
+        Used only for internal testing.
+       */
+      static void _reset();
   };
 }

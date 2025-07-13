@@ -211,13 +211,13 @@ Logger::Logger(const Config& config) :
   Config Logger::Factory::stored_config_ = {};
   bool Logger::Factory::config_set_ = false;
 
-  void Logger::Factory::configure(const Config& config) {
+  void Logger::Factory::configure(Config&& config) {
     std::lock_guard<std::mutex> lock(mutex_);
     if (instance_) {
       // Logger already exists, configuration cannot be changed
       return;
     }
-    stored_config_ = config;
+    stored_config_ = std::move(config);
     config_set_ = true;
   }
 
@@ -229,7 +229,7 @@ Logger::Logger(const Config& config) :
         instance_ = std::shared_ptr<Logger>(new Logger(stored_config_));
       } else {
         instance_ = std::shared_ptr<Logger>(new Logger());
-      }
+      };
     }
     return instance_;
   }
@@ -240,5 +240,15 @@ Logger::Logger(const Config& config) :
     config_set_ = false;
     stored_config_ = {};
   }
+
+  void Logger::init(Config&& config) {
+    Factory::configure(std::move(config));
+  }
+  void Logger::init(const Config& config) {
+    Factory::configure(Config{config});
+  }
   
+  void Logger::_reset() {
+    Factory::_reset();
+  }
 };
