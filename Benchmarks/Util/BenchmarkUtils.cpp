@@ -88,8 +88,8 @@ BenchmarkResult benchmark_logger_performance(const MR::Logger::Config& config, c
     {
         deleteIfExists(config.log_file_name);
 
-        Logger::Logger::init(config);
-        auto logger = MR::Logger::Logger::get();
+        Logger::init(config);
+        auto logger = MR::Logger::get();
         
         // Start timing
         auto start = std::chrono::high_resolution_clock::now();

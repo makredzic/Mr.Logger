@@ -155,7 +155,7 @@ namespace MR::Logger {
       };
 
     public:
-      static void init(Config&& config);
+      static void init(Config&& config = {});
       static void init(const Config& config);
       static std::shared_ptr<Logger> get() { return Factory::_get(); }
 
@@ -165,4 +165,9 @@ namespace MR::Logger {
        */
       static void _reset();
   };
+
+  // Namespace-level convenience functions
+  void init(Config&& config = {});
+  void init(const Config& config);
+  std::shared_ptr<Logger> get();
 }

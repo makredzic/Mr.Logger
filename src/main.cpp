@@ -20,7 +20,8 @@ REGISTER_MR_LOGGER_TO_STRING(Point, toStr)
 
 int main() {
 
-  auto log = MR::Logger::Logger::get();
+  MR::Logger::init();
+  auto log = MR::Logger::get();
 
   log->info("Test 1");
   log->info("Test {}", 2);

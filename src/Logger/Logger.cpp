@@ -247,8 +247,20 @@ Logger::Logger(const Config& config) :
   void Logger::init(const Config& config) {
     Factory::configure(Config{config});
   }
-  
   void Logger::_reset() {
     Factory::_reset();
+  }
+
+  // Namespace-level convenience functions
+  void init(Config&& config) {
+    Logger::init(std::move(config));
+  }
+
+  void init(const Config& config) {
+    Logger::init(config);
+  }
+
+  std::shared_ptr<Logger> get() {
+    return Logger::get();
   }
 };
