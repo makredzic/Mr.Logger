@@ -7,6 +7,7 @@
 #include <MR/Coroutine/WriteTask.hpp>
 
 
+#include <stdexcept>
 #include <stop_token>
 #include <string>
 #include <thread>
@@ -208,44 +209,30 @@ Logger::Logger(const Config& config) :
   // Factory static member definitions
   std::shared_ptr<Logger> Logger::Factory::instance_ = nullptr;
   std::mutex Logger::Factory::mutex_;
-  Config Logger::Factory::stored_config_ = {};
-  bool Logger::Factory::config_set_ = false;
 
-  void Logger::Factory::configure(Config&& config) {
+  void Logger::Factory::init(Config&& config) {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (instance_) {
-      // Logger already exists, configuration cannot be changed
-      return;
+    if (!instance_) {
+      instance_ = std::shared_ptr<Logger>(new Logger(config));
     }
-    stored_config_ = std::move(config);
-    config_set_ = true;
   }
 
   std::shared_ptr<Logger> Logger::Factory::_get() {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (!instance_) {
-      // Lazy initialization
-      if (config_set_) {
-        instance_ = std::shared_ptr<Logger>(new Logger(stored_config_));
-      } else {
-        instance_ = std::shared_ptr<Logger>(new Logger());
-      };
-    }
+    if (!instance_) throw std::runtime_error{"MR::Logger instance not created. MR::Logger::init() must be called before any call to MR::Logger::get()."};
     return instance_;
   }
 
   void Logger::Factory::_reset() {
     std::lock_guard<std::mutex> lock(mutex_);
     instance_.reset();
-    config_set_ = false;
-    stored_config_ = {};
   }
 
   void Logger::init(Config&& config) {
-    Factory::configure(std::move(config));
+    Factory::init(std::move(config));
   }
   void Logger::init(const Config& config) {
-    Factory::configure(Config{config});
+    Factory::init(Config{config});
   }
   void Logger::_reset() {
     Factory::_reset();

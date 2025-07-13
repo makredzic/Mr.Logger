@@ -146,11 +146,9 @@ namespace MR::Logger {
 
         static std::shared_ptr<Logger> instance_;
         static std::mutex mutex_;
-        static Config stored_config_;
-        static bool config_set_;
 
         static std::shared_ptr<Logger> _get();
-        static void configure(Config&& config);
+        static void init(Config&& config);
         static void _reset();
       };
 
