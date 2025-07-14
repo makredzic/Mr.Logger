@@ -44,18 +44,18 @@ namespace MR::Logger {
   class Logger {
     private:
 
-      // CONFIGURATION
-      inline static Config default_config_{
+      // CONFIGURATION - Optimized for multi-threaded performance
+      inline static const Config default_config_{
         .log_file_name = "output.log",
         .info_file_name = "",
         .warn_file_name = "",
         .error_file_name = "",
-        .queue_depth = 256u,
-        .batch_size = 10u,
-        .max_logs_per_iteration = 10u,
-        .small_buffer_pool_size = 128u,
-        .medium_buffer_pool_size = 64u,
-        .large_buffer_pool_size = 32u,
+        .batch_size = 256u,
+        .max_logs_per_iteration = 1024u,
+        .queue_depth = 2048u,
+        .small_buffer_pool_size = 512u,
+        .medium_buffer_pool_size = 256u,
+        .large_buffer_pool_size = 128u,
         .small_buffer_size = 1024u,
         .medium_buffer_size = 4096u,
         .large_buffer_size = 16384u,
@@ -138,6 +138,8 @@ namespace MR::Logger {
       void warn(const std::string& str);
       void error(std::string&& str);
       void error(const std::string& str);
+
+      inline static const Config& defaultConfig() { return default_config_; }
 
     private:
       // Factory class for singleton access

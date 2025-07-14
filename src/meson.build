@@ -5,7 +5,6 @@
 
 src_files = []
 
-subdir('IO')
 subdir('Logger')
 subdir('Memory')
 

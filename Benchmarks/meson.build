@@ -11,7 +11,7 @@ benchmark_executables = [
   'BenchmarkLarge.cpp',
   'BenchmarkDefaultMultithread.cpp',
   'BenchmarkSmallMultithread.cpp',
-  'BenchmarkLargeMultithread.cpp'
+  'BenchmarkLargeMultithread.cpp',
 ]
 
 # List of spdlog benchmark executables to build

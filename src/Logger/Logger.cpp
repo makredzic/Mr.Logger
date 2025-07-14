@@ -37,10 +37,6 @@ Config Logger::mergeWithDefault(const Config& user_config) {
     ? default_config_.error_file_name
     : user_config.error_file_name,
 
-  .queue_depth = user_config.queue_depth == 0
-    ? default_config_.queue_depth
-    : user_config.queue_depth,
-
   .batch_size = user_config.batch_size == 0
     ? default_config_.batch_size
     : user_config.batch_size,
@@ -48,6 +44,11 @@ Config Logger::mergeWithDefault(const Config& user_config) {
   .max_logs_per_iteration = user_config.max_logs_per_iteration == 0
     ? default_config_.max_logs_per_iteration
     : user_config.max_logs_per_iteration,
+
+  // queue depth must always be at least the size of max_logs_per_iteration
+  .queue_depth = user_config.queue_depth == 0
+    ? ( user_config.max_logs_per_iteration != 0 ? user_config.max_logs_per_iteration : default_config_.queue_depth)
+    : user_config.queue_depth,
 
   .small_buffer_pool_size = user_config.small_buffer_pool_size == 0
     ? default_config_.small_buffer_pool_size
@@ -84,7 +85,13 @@ Logger::Logger(const Config& config) :
   file_{config_.log_file_name},
   ring_{config_.queue_depth},
   queue_{config_._queue},
-  worker_{[this](std::stop_token st){ eventLoop(st); }} {}
+  worker_{[this](std::stop_token st){ eventLoop(st); }} {
+
+    if (config_.max_logs_per_iteration > config_.queue_depth) {
+      throw std::invalid_argument{"When configuring queue_depth, it must be at the number of max_logs_per_iteration or bigger."};
+    }
+
+  }
 
   void Logger::eventLoop(std::stop_token st) {
 

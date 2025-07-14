@@ -25,9 +25,9 @@ protected:
             .info_file_name = "",
             .warn_file_name = "",
             .error_file_name = "",
-            .queue_depth = 256,
             .batch_size = 50,
-            .max_logs_per_iteration = 50,
+            .max_logs_per_iteration = 64,
+            .queue_depth = 64,
             ._queue = std::make_shared<Queue::StdQueue<WriteRequest>>()
         };
 

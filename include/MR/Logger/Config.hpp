@@ -15,22 +15,28 @@ namespace MR::Logger {
     std::string warn_file_name;
     std::string error_file_name;
 
-    // io_uring queue depth
-    uint16_t queue_depth; 
-
     // number of log messages that are submitted
     // in batches io_uring
     // (must be <= queue_depth)
     uint16_t batch_size;
 
-    // the central queue which moves log requests from
-    // the front-end to the back-end will constantly
-    // pop messages in a single loop (single-threaded)
-    // and submit them in batches
-    // until the queue is emptied or it reaches this number
-    // afterwhich the same thread will stop dequeuing messages
-    // and will start processing CQEs
+    // The central queue which holds log requests from
+    // the front-end that are sent to the back-end. The worker thread
+    // will constantly pop messages in a single loop
+    // and submit them in batches (defined with batch_size) to io_uring
+    // until the queue is emptied or it reaches max_logs_per_iteration 
+    // afterwhich the same thread will stop dequeuing log requests
+    // and will start processing CQEs. Internally, this controls the io_uring queue depth
+    // Note, after this number of messages is reached, any processed messages
+    // from the queue will also be submited (flushed) before the thread moves on
+    // to process the CQEs.
     uint16_t max_logs_per_iteration;
+
+    // io_uring queue depth (by default, it is the max_logs_per_iteration amount)
+    // The queue depth can be manually increased for whatever reason. Note that
+    // upon initializing the Logger, if the overriden queue_depth is less than
+    // max_logs_per_iteration, a runtime error will be thrown.
+    uint16_t queue_depth;
 
     // Buffer pool configuration
     uint16_t small_buffer_pool_size;
