@@ -1,6 +1,8 @@
 #include "Benchmark.hpp"
+#include "BenchConfigs.hpp"
 #include <MR/Logger/Logger.hpp>
 #include <spdlog/spdlog.h>
+#include <spdlog/logger.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <iostream>
 #include <fstream>
@@ -10,6 +12,8 @@
 #include <thread>
 #include <vector>
 #include <barrier>
+
+using namespace std::chrono;
 
 namespace MR::Benchmarks {
 
@@ -46,7 +50,7 @@ void save_results_to_json(const BenchmarkResult& result) {
     json_file << "  \"threads\": " << result.thread_count << ",\n";
     json_file << "  \"duration_ns\": " << result.duration.count() << ",\n";
     json_file << "  \"duration_ms\": " << (result.duration.count() / 1e6) << ",\n";
-    json_file << "  \"messages_logged\": " << result.messages_logged << ",\n";
+    json_file << "  \"messages_logged\": " << result.total_msgs_logged << ",\n";
     json_file << "  \"messages_per_second\": " << result.messages_per_second << ",\n";
     json_file << "  \"log_file_name\": \"" << result.log_file_name << "\",\n";
     
@@ -65,51 +69,103 @@ void save_results_to_json(const BenchmarkResult& result) {
     json_file.close();
 }
 
+nanoseconds measureSingleThreaded(std::shared_ptr<MR::Logger::Logger> logger, size_t msgs_per_thread) {
+    auto start = high_resolution_clock::now();
+    for (size_t i = 1; i <= msgs_per_thread; ++i) {
+        logger->info("Benchmark message #{}", i);
+    }
+    auto end = high_resolution_clock::now();
+    return duration_cast<nanoseconds>(end - start);
+}
+
+nanoseconds measureMultiThreaded(std::shared_ptr<MR::Logger::Logger> logger, size_t msgs_per_thread, size_t thread_count) {
+
+    std::barrier sync_point(static_cast<std::ptrdiff_t>(thread_count) + 1);
+    std::vector<std::thread> threads;
+    threads.reserve(thread_count + 1);
+    
+    for (size_t thread_id = 0; thread_id < thread_count; ++thread_id) {
+        threads.emplace_back([&sync_point, logger, msgs_per_thread]() {
+            sync_point.arrive_and_wait();
+            
+            for (size_t i = 1; i <= msgs_per_thread; ++i) {
+                logger->info("Benchmark #{}", i);
+            }
+        });
+    }
+
+    auto start = high_resolution_clock::now();
+    sync_point.arrive_and_wait();
+    
+    for (auto& thread : threads) {
+        thread.join();
+    }
+
+    auto end = high_resolution_clock::now();
+    return duration_cast<nanoseconds>(end - start);
+}
+
+nanoseconds measureSpdLoggerSingleThreaded(std::shared_ptr<spdlog::logger> logger, size_t msgs_per_thread) {
+    auto start = high_resolution_clock::now();
+    
+    for (size_t i = 1; i <= msgs_per_thread; ++i) {
+        logger->info("Benchmark message #{}", i);
+    }
+    
+    auto end = high_resolution_clock::now();
+    return duration_cast<nanoseconds>(end - start);
+}
+
+nanoseconds measureSpdLoggerMultiThreaded(std::shared_ptr<spdlog::logger> logger, size_t msgs_per_thread, size_t thread_count) {
+
+    std::barrier sync_point(static_cast<std::ptrdiff_t>(thread_count) + 1);
+    std::vector<std::thread> threads;
+    threads.reserve(thread_count + 1);
+    
+    for (size_t thread_id = 0; thread_id < thread_count; ++thread_id) {
+        threads.emplace_back([&sync_point, logger, msgs_per_thread]() {
+            sync_point.arrive_and_wait();
+            
+            for (size_t i = 1; i <= msgs_per_thread; ++i) {
+                logger->info("Benchmark #{}", i);
+            }
+        });
+    }
+
+    auto start = high_resolution_clock::now();
+    sync_point.arrive_and_wait();
+    
+    for (auto& thread : threads) {
+        thread.join();
+    }
+
+    auto end = high_resolution_clock::now();
+    return duration_cast<nanoseconds>(end - start);
+}
+
+
 BenchmarkResult run_mrlogger_benchmark(const BenchmarkConfig& config) {
-    const size_t total_messages = config.total_messages / config.thread_count;
     
     deleteIfExists(config.logger_config.log_file_name);
     
-    MR::Logger::Logger::init(config.logger_config);
+    const size_t msgs_per_thread = config.total_messages / config.thread_count;
+
+    MR::Logger::init(config.logger_config);
     auto logger = MR::Logger::Logger::get();
-    
-    auto start = std::chrono::high_resolution_clock::now();
-    
-    if (config.thread_count == 1) {
-        for (size_t i = 1; i <= config.total_messages; ++i) {
-            logger->info("Benchmark message #{}", i);
-        }
-    } else {
-        std::barrier sync_point(static_cast<std::ptrdiff_t>(config.thread_count));
-        std::vector<std::thread> threads;
-        threads.reserve(config.thread_count);
-        
-        for (size_t thread_id = 0; thread_id < config.thread_count; ++thread_id) {
-            threads.emplace_back([&sync_point, logger, &config]() {
-                sync_point.arrive_and_wait();
-                
-                for (size_t i = 1; i <= config.total_messages; ++i) {
-                    logger->info("Benchmark #{}", i);
-                }
-            });
-        }
-        
-        for (auto& thread : threads) {
-            thread.join();
-        }
-    }
-    
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+
+    nanoseconds duration = (config.thread_count == 1)?
+        measureSingleThreaded(logger, msgs_per_thread) :
+        measureMultiThreaded(logger, msgs_per_thread, config.thread_count);
     
     double seconds = static_cast<double>(duration.count()) / 1e9;
-    double messages_per_second = total_messages / seconds;
+    double messages_per_second = msgs_per_thread / seconds;
     
     std::cout << config.name << ": " << (duration.count() / 1e6) << " ms" << std::endl;
     
     BenchmarkResult result{
         .duration = duration,
-        .messages_logged = total_messages,
+        .total_msgs_logged = config.total_messages,
+        .msgs_per_thread = msgs_per_thread,
         .messages_per_second = messages_per_second,
         .benchmark_name = config.name,
         .log_file_name = config.logger_config.log_file_name,
@@ -125,59 +181,47 @@ BenchmarkResult run_mrlogger_benchmark(const BenchmarkConfig& config) {
 }
 
 BenchmarkResult run_spdlog_benchmark(const BenchmarkConfig& config) {
-    const size_t total_messages = config.total_messages / config.thread_count;
     
     deleteIfExists(config.spdlog_file_name);
     
-    auto start = std::chrono::high_resolution_clock::now();
+    const size_t msgs_per_thread = config.total_messages / config.thread_count;
+    nanoseconds duration;
     
     if (config.thread_count == 1) {
+
         auto logger = spdlog::basic_logger_st("benchmark_logger", config.spdlog_file_name);
         logger->set_level(spdlog::level::info);
+
         // logger->flush_on(spdlog::level::info);
+
+
+        duration = measureSpdLoggerSingleThreaded(logger, msgs_per_thread);
         
-        for (size_t i = 1; i <= config.total_messages; ++i) {
-            logger->info("Benchmark message #{}", i);
-        }
         
+       
         spdlog::drop("benchmark_logger");
+
     } else {
+
         auto logger = spdlog::basic_logger_mt("benchmark_logger_mt", config.spdlog_file_name);
         logger->set_level(spdlog::level::info);
         // logger->flush_on(spdlog::level::info);
-        
-        std::barrier sync_point(static_cast<std::ptrdiff_t>(config.thread_count));
-        std::vector<std::thread> threads;
-        threads.reserve(config.thread_count);
-        
-        for (size_t t = 0; t < config.thread_count; ++t) {
-            threads.emplace_back([&sync_point, &config, logger]() {
-                sync_point.arrive_and_wait();
-                
-                for (size_t i = 1; i <= config.total_messages; ++i) {
-                    logger->info("Benchmark #{}", i);
-                }
-            });
-        }
-        
-        for (auto& thread : threads) {
-            thread.join();
-        }
+
+        duration = measureSpdLoggerMultiThreaded(logger, msgs_per_thread, config.thread_count);
         
         spdlog::drop("benchmark_logger_mt");
     }
     
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
     
     double seconds = static_cast<double>(duration.count()) / 1e9;
-    double messages_per_second = total_messages / seconds;
+    double messages_per_second = msgs_per_thread / seconds;
     
     std::cout << config.name << ": " << (duration.count() / 1e6) << " ms" << std::endl;
     
     BenchmarkResult result{
         .duration = duration,
-        .messages_logged = total_messages,
+        .total_msgs_logged = config.total_messages,
+        .msgs_per_thread = msgs_per_thread,
         .messages_per_second = messages_per_second,
         .benchmark_name = config.name,
         .log_file_name = config.spdlog_file_name,

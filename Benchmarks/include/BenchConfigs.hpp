@@ -31,7 +31,12 @@ class BenchConfigs {
 public:
     static BenchmarkConfig get_default_config(size_t thread_count = 1) {
         auto config = BenchmarkConfig(BenchmarkType::MRLogger, "Default", thread_count);
-        config.logger_config = MR::Logger::Logger::defaultConfig();
+
+        auto default_logger_config = MR::Logger::Logger::defaultConfig();
+        default_logger_config.log_file_name = "benchmark_default.log";
+
+        config.logger_config = default_logger_config;
+
         return config;
     }
     

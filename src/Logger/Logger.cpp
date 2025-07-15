@@ -98,6 +98,7 @@ Logger::Logger(const Config& config) :
     // Required to hold the state of the coroutines while they
     // are suspended and not finished
     std::vector<Coroutine::WriteTask> active_tasks;
+    active_tasks.reserve(config_.max_logs_per_iteration*2);
 
     size_t pending_writes = 0;
 

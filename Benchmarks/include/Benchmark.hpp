@@ -8,7 +8,8 @@ namespace MR::Benchmarks {
 
 struct BenchmarkResult {
     std::chrono::nanoseconds duration;
-    size_t messages_logged;
+    size_t total_msgs_logged;
+    size_t msgs_per_thread;
     double messages_per_second;
     std::string benchmark_name;
     std::string log_file_name;
