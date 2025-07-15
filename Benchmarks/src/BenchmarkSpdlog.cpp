@@ -3,7 +3,7 @@
 
 int main() {
     auto config = MR::Benchmarks::BenchConfigs::get_spdlog_config(1);
-    config.name = "BenchmarkSpdlog";
+    config.name = "Bench_Spdlog_SingleThread";
     
     MR::Benchmarks::run_benchmark(config);
     

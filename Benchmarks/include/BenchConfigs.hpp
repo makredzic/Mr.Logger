@@ -33,7 +33,8 @@ public:
         auto config = BenchmarkConfig(BenchmarkType::MRLogger, "Default", thread_count);
 
         auto default_logger_config = MR::Logger::Logger::defaultConfig();
-        default_logger_config.log_file_name = "benchmark_default.log";
+        std::string thread_suffix = thread_count > 1 ? "_MultiThread" : "_SingleThread";
+        default_logger_config.log_file_name = "Bench_Default" + thread_suffix + ".log";
 
         config.logger_config = default_logger_config;
 
@@ -42,8 +43,9 @@ public:
     
     static BenchmarkConfig get_small_config(size_t thread_count = 1) {
         auto config = BenchmarkConfig(BenchmarkType::MRLogger, "Small", thread_count);
+        std::string thread_suffix = thread_count > 1 ? "_MultiThread" : "_SingleThread";
         config.logger_config = MR::Logger::Config{
-            .log_file_name = "benchmark_small.log",
+            .log_file_name = "Bench_Small" + thread_suffix + ".log",
             .info_file_name = "",
             .warn_file_name = "",
             .error_file_name = "",
@@ -63,8 +65,9 @@ public:
     
     static BenchmarkConfig get_large_config(size_t thread_count = 1) {
         auto config = BenchmarkConfig(BenchmarkType::MRLogger, "Large", thread_count);
+        std::string thread_suffix = thread_count > 1 ? "_MultiThread" : "_SingleThread";
         config.logger_config = MR::Logger::Config{
-            .log_file_name = "benchmark_large.log",
+            .log_file_name = "Bench_Large" + thread_suffix + ".log",
             .info_file_name = "",
             .warn_file_name = "",
             .error_file_name = "",
@@ -84,7 +87,8 @@ public:
     
     static BenchmarkConfig get_spdlog_config(size_t thread_count = 1) {
         auto config = BenchmarkConfig(BenchmarkType::Spdlog, "Spdlog", thread_count);
-        config.spdlog_file_name = thread_count > 1 ? "spdlog_benchmark_multithread.log" : "spdlog_benchmark.log";
+        std::string thread_suffix = thread_count > 1 ? "_MultiThread" : "_SingleThread";
+        config.spdlog_file_name = "Bench_Spdlog" + thread_suffix + ".log";
         return config;
     }
 };

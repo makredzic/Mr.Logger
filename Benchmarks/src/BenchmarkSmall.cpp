@@ -3,7 +3,7 @@
 
 int main() {
     auto config = MR::Benchmarks::BenchConfigs::get_small_config(1);
-    config.name = "SingleThread-SmallQueue";
+    config.name = "Bench_Small_SingleThread";
     
     MR::Benchmarks::run_benchmark(config);
     

@@ -6,21 +6,21 @@ benchmark_core_sources = files(
     'src/Benchmark.cpp'
 )
 
-# List of benchmark executables to build
-benchmark_executables = [
-    'BenchmarkDefault.cpp',
-    'BenchmarkSmall.cpp', 
-    'BenchmarkLarge.cpp',
-    'BenchmarkSpdlog.cpp',
-    'BenchmarkDefaultMultiThreaded.cpp',
-    'BenchmarkSpdlogMultiThreaded.cpp',
+# List of benchmark executables to build with new naming convention
+benchmark_config = [
+    ['BenchmarkDefault.cpp', 'Bench_Default_SingleThread'],
+    ['BenchmarkSmall.cpp', 'Bench_Small_SingleThread'], 
+    ['BenchmarkLarge.cpp', 'Bench_Large_SingleThread'],
+    ['BenchmarkSpdlog.cpp', 'Bench_Spdlog_SingleThread'],
+    ['BenchmarkDefaultMultiThreaded.cpp', 'Bench_Default_MultiThread'],
+    ['BenchmarkSpdlogMultiThreaded.cpp', 'Bench_Spdlog_MultiThread'],
 ]
 
 # Build each benchmark executable and store references
 benchmark_exes = []
-foreach exe_src : benchmark_executables
-  # Extract executable name from source filename
-  exe_name = exe_src.split('.')[0]
+foreach bench_info : benchmark_config
+  exe_src = bench_info[0]
+  exe_name = bench_info[1]
   
   exe = executable(exe_name,
     [lib_src, benchmark_core_sources, files('src/' + exe_src)],

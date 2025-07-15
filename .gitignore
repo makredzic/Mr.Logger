@@ -11,3 +11,5 @@ include/spdlog
 BenchmarkPlots
 BenchmarkResults
 *.log
+
+__pycache__/*
