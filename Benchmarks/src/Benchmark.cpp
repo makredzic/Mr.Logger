@@ -26,7 +26,7 @@ void deleteIfExists(const std::string& filename) {
 }
 
 std::string get_next_filename(const std::string& base_name, const std::string& extension) {
-    std::string results_dir{"BenchmarkResults"};
+    std::string results_dir{"build/BenchmarkResults"};
     int counter = 1;
     std::string filename;
     
@@ -39,7 +39,7 @@ std::string get_next_filename(const std::string& base_name, const std::string& e
 }
 
 void save_results_to_json(const BenchmarkResult& result) {
-    std::string results_dir{"BenchmarkResults"};
+    std::string results_dir{"build/BenchmarkResults"};
     std::filesystem::create_directories(results_dir);
     
     std::string filename = get_next_filename(result.benchmark_name, ".json");
