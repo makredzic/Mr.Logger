@@ -52,9 +52,8 @@ void FileRotater::updateCurrentSize(size_t bytes_written) {
     current_size_ += bytes_written;
 }
 
-const std::string& FileRotater::getCurrentFilename() const {
-    static std::string current_filename = base_name_ + extension_;
-    return current_filename;
+std::string FileRotater::getCurrentFilename() const {
+    return base_name_ + extension_;
 }
 
 void FileRotater::reset() {

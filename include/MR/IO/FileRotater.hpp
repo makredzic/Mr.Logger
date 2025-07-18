@@ -20,7 +20,7 @@ namespace MR::IO {
     bool shouldRotate() const;
     void rotate();
     void updateCurrentSize(size_t bytes_written);
-    const std::string& getCurrentFilename() const;
+    std::string getCurrentFilename() const;
     void reset();
   };
 

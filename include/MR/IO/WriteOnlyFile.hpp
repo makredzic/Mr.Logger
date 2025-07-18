@@ -51,5 +51,14 @@ public:
 
   inline int fd() const { return fd_; }
   inline const std::string& path() const { return path_; }
+  
+  inline void reopen(const std::string& new_path) {
+    close();
+    path_ = new_path;
+    fd_ = open(path_.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if (fd_ < 0) {
+      throw std::runtime_error("Failed to reopen log file");
+    }
+  }
 };
 } // namespace MR::IO

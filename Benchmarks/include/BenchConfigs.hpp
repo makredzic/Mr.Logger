@@ -46,9 +46,7 @@ public:
         std::string thread_suffix = thread_count > 1 ? "_MultiThread" : "_SingleThread";
         config.logger_config = MR::Logger::Config{
             .log_file_name = "Bench_Small" + thread_suffix + ".log",
-            .info_file_name = "",
-            .warn_file_name = "",
-            .error_file_name = "",
+            .max_log_size_bytes = 5 * 1024 * 1024,
             .batch_size = 32u,
             .max_logs_per_iteration = 128u,
             .queue_depth = 256u,
@@ -68,9 +66,7 @@ public:
         std::string thread_suffix = thread_count > 1 ? "_MultiThread" : "_SingleThread";
         config.logger_config = MR::Logger::Config{
             .log_file_name = "Bench_Large" + thread_suffix + ".log",
-            .info_file_name = "",
-            .warn_file_name = "",
-            .error_file_name = "",
+            .max_log_size_bytes = 5 * 1024 * 1024,
             .batch_size = 1024u,
             .max_logs_per_iteration = 2048u,
             .queue_depth = 4096u,

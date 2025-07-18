@@ -15,6 +15,7 @@
 
 #include <MR/IO/WriteOnlyFile.hpp>
 #include <MR/IO/IOUring.hpp>
+#include <MR/IO/FileRotater.hpp>
 
 #include <MR/Interface/ThreadSafeQueue.hpp>
 #include <memory>
@@ -65,6 +66,7 @@ namespace MR::Logger {
       IO::IOUring ring_;
       std::shared_ptr<Interface::ThreadSafeQueue<WriteRequest>> queue_;
       BufferPool buffer_pool_;
+      IO::FileRotater file_rotater_;
 
       std::jthread worker_;
 

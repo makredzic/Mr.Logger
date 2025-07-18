@@ -77,6 +77,7 @@ Logger::Logger(const Config& config) :
   file_{config_.log_file_name},
   ring_{config_.queue_depth},
   queue_{config_._queue},
+  file_rotater_{config_.log_file_name, config_.max_log_size_bytes},
   worker_{[this](std::stop_token st){ eventLoop(st); }} {
 
     if (config_.max_logs_per_iteration > config_.queue_depth) {
@@ -143,6 +144,12 @@ Logger::Logger(const Config& config) :
 
   Coroutine::WriteTask Logger::processRequest(WriteRequest&& request) {
 
+    // Check if file rotation is needed
+    if (file_rotater_.shouldRotate()) {
+      file_rotater_.rotate();
+      file_.reopen(file_rotater_.getCurrentFilename());
+    }
+
     // Estimate required buffer size (with some padding for safety)
     size_t estimated_size = request.data.size() + 256; // Extra for timestamp, level, thread ID
     
@@ -166,6 +173,9 @@ Logger::Logger(const Config& config) :
     if (bytes_written < 0) {
         // Log error or handle failed write
         // Could implement retry logic here
+    } else {
+        // Update file rotater with bytes written
+        file_rotater_.updateCurrentSize(bytes_written);
     }
     
     // Could also do other post-write operations:

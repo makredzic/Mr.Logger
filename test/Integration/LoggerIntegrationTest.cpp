@@ -22,9 +22,7 @@ protected:
         
         config_ = {
             .log_file_name = test_log_file_.string(),
-            .info_file_name = "",
-            .warn_file_name = "",
-            .error_file_name = "",
+            .max_log_size_bytes = 100 * 1024 * 1024,
             .batch_size = 50,
             .max_logs_per_iteration = 64,
             .queue_depth = 64,
