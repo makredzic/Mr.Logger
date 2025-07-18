@@ -3,7 +3,7 @@
 #include <fmt/format.h>
 #include <fmt/compile.h>
 
-#include "MR/Logger/SeverityLevel.hpp"
+#include <MR/Logger/SeverityLevel.hpp>
 #include <MR/Logger/Config.hpp>
 #include <MR/Memory/BufferPool.hpp>
 #include <MR/Coroutine/WriteTask.hpp>
@@ -21,7 +21,7 @@
 #include <thread>
 #include <mutex>
 
-// The same macro from before
+
 #define MRLOGGER_TO_STRING(type, lambda) \
   template<> \
   struct fmt::formatter<type> { \
@@ -44,12 +44,9 @@ namespace MR::Logger {
   class Logger {
     private:
 
-      // CONFIGURATION - Optimized for multi-threaded performance
       inline static const Config default_config_{
         .log_file_name = "output.log",
-        .info_file_name = "",
-        .warn_file_name = "",
-        .error_file_name = "",
+        .max_log_size_bytes = 5 * 1024 * 1024,
         .batch_size = 32u,
         .max_logs_per_iteration = 128u,
         .queue_depth = 512u,
@@ -71,7 +68,7 @@ namespace MR::Logger {
 
       std::jthread worker_;
 
-      // Private constructor - only accessible through Factory
+      // Private constructor only for the Factory class
       Logger(const Config& = default_config_);
       friend class Factory;
       

@@ -10,13 +10,12 @@ namespace MR::Logger {
     // All severities always end up here
     std::string log_file_name;
 
-    // Optional. If not present, won't be used.
-    std::string info_file_name;
-    std::string warn_file_name;
-    std::string error_file_name;
+    // Log files are rotated automatically. New log file will be used
+    // when this size is reached. 
+    size_t max_log_size_bytes;
 
     // number of log messages that are submitted
-    // in batches io_uring
+    // in batches to io_uring
     // (must be <= queue_depth)
     uint16_t batch_size;
 

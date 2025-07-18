@@ -25,17 +25,9 @@ Config Logger::mergeWithDefault(const Config& user_config) {
       ? default_config_.log_file_name
       : user_config.log_file_name,
 
-  .info_file_name = user_config.info_file_name.empty()
-    ? default_config_.info_file_name
-    : user_config.info_file_name,
-
-  .warn_file_name = user_config.warn_file_name.empty()
-    ? default_config_.warn_file_name
-    : user_config.warn_file_name,
-
-  .error_file_name = user_config.error_file_name.empty()
-    ? default_config_.error_file_name
-    : user_config.error_file_name,
+  .max_log_size_bytes = user_config.max_log_size_bytes == 0
+    ? default_config_.max_log_size_bytes
+    : user_config.max_log_size_bytes,
 
   .batch_size = user_config.batch_size == 0
     ? default_config_.batch_size
