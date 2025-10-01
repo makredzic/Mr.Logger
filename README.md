@@ -1,6 +1,6 @@
 ## Project Overview
 
-MRLogger is a high-performance C++20 logging library built as part of a Master's thesis research project. It utilizes modern C++20 features (mainly coroutines) as well as io_uring for asynchronous I/O operations, comparing performance against established libraries like spdlog.
+MrLogger (pronounced *Mister Logger*) is a high-performance C++20 logging library built as part of a Master's thesis research project. It utilizes modern C++20 features (mainly coroutines) as well as io_uring for asynchronous I/O operations, comparing performance against established libraries like spdlog.
 
 
 ### Dependencies
@@ -38,8 +38,6 @@ Logger behavior is controlled through the `Config` struct in `include/MR/Logger/
 ### Platform Requirements
 - **Linux-only**: Requires io_uring support (Linux 5.1+)
 - **C++20 Standard**: Uses coroutines, concepts, ranges
-- **Release Builds**: Optimized for performance (`buildtype=release`)
-
 
 ### Testing Strategy
 - **Integration Tests**: Multi-threaded scenarios in `test/Integration/`
@@ -55,7 +53,7 @@ meson setup build
 # Compile all targets
 meson compile -C build
 
-# Run main executable
+# Run main executable (placeholder dummy example)
 ./build/main
 
 # Clean and reconfigure
@@ -63,25 +61,28 @@ rm -rf build && meson setup build
 ```
 
 ### Testing
+The option `-Dsequence_tracking=true` is only for running an extra test. It enables the `LOGGER_TEST_SEQUENCE_TRACKING` preprocessor flag which adds additional code into the logger's implementation that adds a sequence number to each message. This is used for validating that the order in which messages are submitted to the intermediary queue
+by multiple threads concurrently is maintained when it finally reaches the log file. 
+
 ```bash
+# Build project with sequence tracking for extra ordering tests (recommended when testing)
+meson setup build -Dsequence_tracking=true
+
+# Compile 
+ninja -C build
+
 # Run all tests
 meson test -C build
 ```
 
 ### Benchmarking
 ```bash
-# Individual benchmark executables
-./build/Benchmarks/BenchmarkDefault
-./build/Benchmarks/BenchmarkSmall
-./build/Benchmarks/BenchmarkLarge
-./build/Benchmarks/BenchmarkDefaultMultithread
-./build/Benchmarks/BenchmarkSmallMultithread  
-./build/Benchmarks/BenchmarkLargeMultithread
-./build/Benchmarks/BenchmarkSpdlog
-./build/Benchmarks/BenchmarkSpdlogMultithread
+# Run 1 quick iteration of all benchmarks (vs spdlog)
+ninja benchmarks # in the build dir
 
-# Automated benchmark suite with analysis
-python3 benchmark_runner.py . 10
+# Automated benchmark suite with analysis and plotting
+# 3 - number of times EACH test will be run to get the min,max,median and avg time
+python3 benchmark_runner.py 3
 ```
 
 ## Platform Requirements
