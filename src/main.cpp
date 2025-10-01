@@ -1,9 +1,9 @@
-
 #include <MR/Logger/WriteRequest.hpp>
-#include <MR/IO/IOUring.hpp>
-#include <MR/IO/WriteOnlyFile.hpp>
 #include <MR/Logger/Logger.hpp>
+#include <MR/Interface/ThreadSafeQueue.hpp>
+#include <memory>
 #include <string>
+#include <thread>
 
 using namespace MR::IO;
 using namespace std::chrono_literals;
@@ -12,10 +12,13 @@ using namespace std::chrono_literals;
 struct Point { 
   int a; 
   int b; 
+  std::string to_string() const {
+    return std::string{"a = " + std::to_string(a) + ", b = " + std::to_string(b)};
+  }
 };
 
-std::string toStr(const Point& pt) { return std::string{"a = " + std::to_string(pt.a) + "b = " + std::to_string(pt.b)}; }
-MRLOGGER_TO_STRING(Point, toStr)
+// std::string toStr(const Point& pt) { return std::string{"a = " + std::to_string(pt.a) + ", b = " + std::to_string(pt.b)}; }
+MRLOGGER_TO_STRING(Point)
 
 
 int main() {

@@ -22,8 +22,24 @@
 #include <thread>
 #include <mutex>
 
+// The dispatcher: selects which macro to call based on arg count.
+#define GET_MACRO(_1, _2, NAME, ...) NAME
 
-#define MRLOGGER_TO_STRING(type, lambda) \
+// The implementation for the 1-argument version (uses .to_string() member).
+#define MRLOGGER_TO_STRING_1(type) \
+  template<> \
+  struct fmt::formatter<type> { \
+    constexpr auto parse(format_parse_context& ctx) -> decltype(ctx.begin()) { \
+      return ctx.end(); \
+    } \
+    template<typename FormatContext> \
+    auto format(const type& obj, FormatContext& ctx) const -> decltype(ctx.out()) { \
+      return fmt::format_to(ctx.out(), "{}", obj.to_string()); \
+    } \
+  };
+
+// 1. The implementation for the 2-argument version (uses a separate function/lambda).
+#define MRLOGGER_TO_STRING_2(type, lambda) \
   template<> \
   struct fmt::formatter<type> { \
     constexpr auto parse(format_parse_context& ctx) -> decltype(ctx.begin()) { \
@@ -34,6 +50,10 @@
       return fmt::format_to(ctx.out(), "{}", lambda(obj)); \
     } \
   };
+
+#define MRLOGGER_TO_STRING(...) GET_MACRO(__VA_ARGS__, MRLOGGER_TO_STRING_2, MRLOGGER_TO_STRING_1)(__VA_ARGS__)
+
+
 
 
 namespace MR::Logger {
@@ -64,7 +84,7 @@ namespace MR::Logger {
       Config config_;
       IO::WriteOnlyFile file_;
       IO::IOUring ring_;
-      std::shared_ptr<Interface::ThreadSafeQueue<WriteRequest>> queue_;
+      std::shared_ptr<Interface::ThreadSafeQueue<WriteRequest>> queue_ = nullptr;
       BufferPool buffer_pool_;
       IO::FileRotater file_rotater_;
 

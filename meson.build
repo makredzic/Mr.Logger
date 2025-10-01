@@ -12,7 +12,7 @@ deps = [
 ]
 
 # Compile arguments
-compile_args = []
+compile_args = ['-Werror=return-type']
 if get_option('sequence_tracking')
   message('LOGGER_TEST_SEQUENCE_TRACKING: ENABLED')
   compile_args += '-DLOGGER_TEST_SEQUENCE_TRACKING'

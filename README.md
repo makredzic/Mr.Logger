@@ -1,9 +1,9 @@
-## Project Overview
+# Project Overview
 
 MrLogger (pronounced *Mister Logger*) is a high-performance C++20 logging library built as part of a Master's thesis research project. It utilizes modern C++20 features (mainly coroutines) as well as io_uring for asynchronous I/O operations, comparing performance against established libraries like spdlog.
 
 
-### Dependencies
+## Dependencies
 - **liburing** - Linux io_uring for async I/O (required)
 - **fmt** - Fast C++ formatting library
 - **GoogleTest** - Testing framework
@@ -28,13 +28,6 @@ MrLogger (pronounced *Mister Logger*) is a high-performance C++20 logging librar
 ### Thread Safety Model
 The logger uses a thread-safe design with configurable thread-safe queue implementations. In its most basic form, the logger uses a blocking wrapper class around `std::queue` but the `Interface::ThreadSafeQueue` can be implemented freely for more optimized performance, replacing `StdQueue`. All public logging methods (info, warn, error) can be called concurrently from multiple threads.
 
-### Configuration System
-Logger behavior is controlled through the `Config` struct in `include/MR/Logger/Config.hpp`:
-- **queue_depth**: io_uring submission queue depth
-- **batch_size**: Number of operations submitted per io_uring batch
-- **max_logs_per_iteration**: Limits processing to prevent starvation
-- Custom file paths for different severity levels
-
 ### Platform Requirements
 - **Linux-only**: Requires io_uring support (Linux 5.1+)
 - **C++20 Standard**: Uses coroutines, concepts, ranges
@@ -43,6 +36,100 @@ Logger behavior is controlled through the `Config` struct in `include/MR/Logger/
 - **Integration Tests**: Multi-threaded scenarios in `test/Integration/`
 - **Benchmark Regression**: Performance testing through comprehensive benchmark suite
 - **JSON Output**: Benchmark results in structured format for analysis
+
+
+## Usage
+
+### Configuration System
+The Logger behavior is controlled through the `Config` struct in `include/MR/Logger/Config.hpp`. Each option can be overriden manually when initializing the Logger singleton. All options that are unspecified will inherit the default config's values.
+
+```cpp
+#include <MR/Logger/Logger.hpp>
+
+// Initiliaze the logger with the default config
+MR::Logger::init(); 
+
+// Initialize with a different output file name
+// all other options are inherited from the default config
+MR::Logger::init({.log_file_name="abc.log"});
+
+// Get the logger singleton. Can be used anywhere in the codebase
+// as long as the logger `init()` function was called once beforehand
+
+auto log = MR::Logger::get();
+log->info("Hello, World!");
+```
+
+### Thread Safe Queue
+All log requests (see `include/MR/Logger/WriteRequest.hpp`) are pushed into a 
+thread-safe queue (see `include/MR/Interface/ThreadSafeQueue.hpp). Write requests are dequeued by the backend loop for further processing on a worker thread. The default implementation of the `ThreadSafeQueue` is a simple wrapper class around `std::queue` with mutex locks (see `include/MR/Queue/StdQueue.hpp`). This is by far the slowest approach for an intermediary thread-safe queue yet it still beats `spdlog` in a multi-threaded environment when measuring the time to push 1m messages to the logging system.
+
+A custom implementation of a thread-safe queue can be provided when initiaiting the Logger by implementing the `ThreadSafeQueue` interface:
+```cpp
+template <typename T>
+struct CustomQueue : public MR::Interface::ThreadSafeQueue<T>{
+    inline void push(const T&) override { /*...*/}
+    void push(T&&) override { /*...*/ }
+    std::optional<T> tryPop() override { /*...*/ }
+    std::optional<T> pop() override { /*...*/ }
+    bool empty() const override { /*...*/ }
+    size_t size() const override { /*...*/ }
+    void shutdown() override { /*...*/ }
+};
+
+// Init the logger with your custom queue implementation
+MR::Logger::init({
+  ._queue = std::make_shared<CustomQueue<MR::Logger::WriteRequest>>()}
+);
+```
+
+### Formatting
+The open-source library `fmt` is used for powerful, fast and type-safe formatting.
+
+```cpp
+log->info("Test 1");
+log->info("Test {}", 2); // "Test 2"
+```
+
+To easily log a custom struct, simply register a transformation function that shows the string representation of your struct.
+```cpp
+#include <MR/Logger/Logger.hpp> // <-- also defines the MRLOGGER_TO_STRING macro
+
+// OPTION A //
+struct Point { 
+  int a; 
+  int b; 
+};
+
+// Pass a "to string" transformation function
+std::string toStr(const Point& pt) {
+  return std::string{
+    "a = " + std::to_string(pt.a) + ", b = " + std::to_string(pt.b)
+  }; 
+}
+
+// Register the toStr function
+MRLOGGER_TO_STRING(Point, toStr)
+
+// OPTION B //
+struct Point { 
+  int a; 
+  int b; 
+
+  // Create a to_string const member function
+  std::string to_string() const {
+    return std::string{"a = " + std::to_string(a) + ", b = " + std::to_string(b)};
+  }
+};
+
+// Simply register the type
+MRLOGGER_TO_STRING(Point)
+
+// Regardless of the option (A or B)
+// this now works
+Point pt{6,9};
+log->info("My point: {}", pt); // My point: a = 6, b = 9
+```
 
 
 ### Build & Compilation
