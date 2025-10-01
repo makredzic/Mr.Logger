@@ -55,14 +55,13 @@ MR::Logger::init({.log_file_name="abc.log"});
 
 // Get the logger singleton. Can be used anywhere in the codebase
 // as long as the logger `init()` function was called once beforehand
-
 auto log = MR::Logger::get();
 log->info("Hello, World!");
 ```
 
 ### Thread Safe Queue
 All log requests (see `include/MR/Logger/WriteRequest.hpp`) are pushed into a 
-thread-safe queue (see `include/MR/Interface/ThreadSafeQueue.hpp). Write requests are dequeued by the backend loop for further processing on a worker thread. The default implementation of the `ThreadSafeQueue` is a simple wrapper class around `std::queue` with mutex locks (see `include/MR/Queue/StdQueue.hpp`). This is by far the slowest approach for an intermediary thread-safe queue yet it still beats `spdlog` in a multi-threaded environment when measuring the time to push 1m messages to the logging system.
+thread-safe queue (see `include/MR/Interface/ThreadSafeQueue.hpp`). Write requests are dequeued by the backend loop for further processing on a worker thread. The default implementation of the `ThreadSafeQueue` is a simple wrapper class around `std::queue` with mutex locks (see `include/MR/Queue/StdQueue.hpp`). This is by far the slowest approach for an intermediary thread-safe queue yet it still beats `spdlog` in a multi-threaded environment when measuring the time to push 1m messages to the logging system.
 
 A custom implementation of a thread-safe queue can be provided when initiaiting the Logger by implementing the `ThreadSafeQueue` interface:
 ```cpp
