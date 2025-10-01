@@ -1,0 +1,1 @@
+option('sequence_tracking', type: 'boolean', value: false, description: 'Enable LOGGER_TEST_SEQUENCE_TRACKING for testing')

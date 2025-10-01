@@ -4,9 +4,25 @@
 #include <mutex>
 #include <queue>
 #include <MR/Interface/ThreadSafeQueue.hpp>
-#include <stdexcept>
+#ifdef LOGGER_TEST_SEQUENCE_TRACKING
+#include <atomic>
+#include <type_traits>
+#endif
+
+#ifdef LOGGER_TEST_SEQUENCE_TRACKING
+namespace MR {
+  namespace Logger {
+    struct WriteRequest;
+  }
+}
+#endif
 
 namespace MR::Queue {
+
+#ifdef LOGGER_TEST_SEQUENCE_TRACKING
+  // Global sequence counter for all WriteRequest instances
+  extern std::atomic<uint64_t> global_sequence_counter;
+#endif
 
   template <typename T>
   class StdQueue : public Interface::ThreadSafeQueue<T> {
@@ -39,7 +55,19 @@ namespace MR::Queue {
         {
           LOCK();
           if (stop_) return;
+
+#ifdef LOGGER_TEST_SEQUENCE_TRACKING
+          // Assign sequence number if this is a WriteRequest
+          if constexpr (std::is_same_v<T, MR::Logger::WriteRequest>) {
+            T element_copy = element;
+            element_copy.sequence_number = global_sequence_counter.fetch_add(1, std::memory_order_seq_cst);
+            queue_.push(std::move(element_copy));
+          } else {
+            queue_.push(element);
+          }
+#else
           queue_.push(element);
+#endif
         }
         cv_.notify_one();
       }
@@ -48,6 +76,13 @@ namespace MR::Queue {
         {
           LOCK();
           if (stop_) return;
+
+#ifdef LOGGER_TEST_SEQUENCE_TRACKING
+          // Assign sequence number if this is a WriteRequest
+          if constexpr (std::is_same_v<T, MR::Logger::WriteRequest>) {
+            element.sequence_number = global_sequence_counter.fetch_add(1, std::memory_order_seq_cst);
+          }
+#endif
           queue_.push(std::move(element));
         }
         cv_.notify_one();

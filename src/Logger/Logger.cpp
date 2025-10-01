@@ -188,14 +188,28 @@ Logger::Logger(const Config& config) :
 
   size_t Logger::formatTo(WriteRequest&& writeRequest, char* buffer, size_t capacity) {
 
+#ifdef LOGGER_TEST_SEQUENCE_TRACKING
+    // Debug: This should be executed when testing
     auto result = fmt::format_to_n(
       buffer, capacity - 1,  // Reserve space for null terminator
-      "[{}] [{}] [Thread: {}]: {}\n",  
-      writeRequest.timestamp, 
-      sevLvlToStr(writeRequest.level), 
-      writeRequest.threadId, 
+      "[{}] [{}] [Thread: {}] [Seq: {}]: {}\n",
+      writeRequest.timestamp,
+      sevLvlToStr(writeRequest.level),
+      writeRequest.threadId,
+      writeRequest.sequence_number,
       std::move(writeRequest.data)
     );
+#else
+    // Debug: This should NOT be executed when testing
+    auto result = fmt::format_to_n(
+      buffer, capacity - 1,  // Reserve space for null terminator
+      "[{}] [{}] [Thread: {}]: {}\n",
+      writeRequest.timestamp,
+      sevLvlToStr(writeRequest.level),
+      writeRequest.threadId,
+      std::move(writeRequest.data)
+    );
+#endif
     
     // Null terminate (myb not necessary for io_uring??)
     if (result.size < capacity) {

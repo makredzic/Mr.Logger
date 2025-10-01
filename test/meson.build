@@ -10,7 +10,8 @@ gmock_dep = dependency('gmock', static: true)
 # in the foreach loop below
 test_filenames = [
   'Integration/LoggerIntegrationTest.cpp',
-  'Unit/FileRotaterTest.cpp'
+  'Unit/FileRotaterTest.cpp',
+  'Unit/BufferPoolTest.cpp'
 ]
 
 # Build and test each one
@@ -24,6 +25,7 @@ foreach fname : test_filenames
     [lib_src, files(fname)],
     include_directories: [incdir],
     dependencies: [gtest_dep, gmock_dep, deps],
+    cpp_args: compile_args
   )
 
   test(test_name, test_exe)

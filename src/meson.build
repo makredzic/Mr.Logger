@@ -8,6 +8,7 @@ src_files = []
 subdir('Logger')
 subdir('Memory')
 subdir('IO')
+subdir('Queue')
 
 # Expose library sources to parent
 lib_src = src_files 

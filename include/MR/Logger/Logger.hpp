@@ -86,6 +86,9 @@ namespace MR::Logger {
           .data = std::forward<T>(data),
           .threadId = std::this_thread::get_id(),
           .timestamp = std::chrono::system_clock::now()
+#ifdef LOGGER_TEST_SEQUENCE_TRACKING
+          , .sequence_number = 0  // Will be set by StdQueue::push
+#endif
         };
         queue_->push(std::move(req));
       }

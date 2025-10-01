@@ -9,17 +9,21 @@
 #include <vector>
 #include <barrier>
 
+#ifdef LOGGER_TEST_SEQUENCE_TRACKING
+#include <MR/Queue/StdQueue.hpp>
+#endif
+
 namespace MR::Logger::Test {
 
 class LoggerIntegrationTest : public ::testing::Test {
 protected:
     void SetUp() override {
         test_log_file_ = std::filesystem::temp_directory_path() / "logger_integration_test.log";
-        
+
         if (std::filesystem::exists(test_log_file_)) {
             std::filesystem::remove(test_log_file_);
         }
-        
+
         config_ = {
             .log_file_name = test_log_file_.string(),
             .max_log_size_bytes = 100 * 1024 * 1024,
@@ -28,6 +32,11 @@ protected:
             .queue_depth = 64,
             ._queue = std::make_shared<Queue::StdQueue<WriteRequest>>()
         };
+
+#ifdef LOGGER_TEST_SEQUENCE_TRACKING
+        // Reset the global sequence counter for each test
+        Queue::global_sequence_counter.store(0, std::memory_order_seq_cst);
+#endif
 
         Logger::_reset();
         Logger::init(config_);
@@ -105,8 +114,8 @@ TEST_F(LoggerIntegrationTest, TwoThreadLogging) {
             {
                 std::lock_guard<std::mutex> lock(messages_mutex);
                 all_messages.push_back(msg);
+                logger->info(msg);
             }
-            logger->info(msg);
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     });
@@ -117,8 +126,8 @@ TEST_F(LoggerIntegrationTest, TwoThreadLogging) {
             {
                 std::lock_guard<std::mutex> lock(messages_mutex);
                 all_messages.push_back(msg);
+                logger->info(msg);
             }
-            logger->info(msg);
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     });
@@ -158,8 +167,8 @@ TEST_F(LoggerIntegrationTest, ThreeThreadLogging) {
             {
                 std::lock_guard<std::mutex> lock(messages_mutex);
                 all_messages.push_back(msg);
+                logger->info(msg);
             }
-            logger->info(msg);
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
     };
@@ -268,5 +277,68 @@ TEST_F(LoggerIntegrationTest, EarlyLoggerClosureMultiThreaded) {
         }
     }
 }
+
+#ifdef LOGGER_TEST_SEQUENCE_TRACKING
+TEST_F(LoggerIntegrationTest, SequenceNumberOrderingWithoutSync) {
+    auto logger = Logger::get();
+
+    auto thread_func = [&](int thread_id) {
+        for (int i = 1; i <= 10; ++i) {
+            std::string msg = "Thread" + std::to_string(thread_id) + "-Message" + std::to_string(i);
+            logger->info(msg);  // NO external sync here!
+
+            // Small delay to avoid overwhelming
+            std::this_thread::sleep_for(std::chrono::microseconds(100));
+        }
+    };
+
+    std::thread t1(thread_func, 1);
+    std::thread t2(thread_func, 2);
+    std::thread t3(thread_func, 3);
+
+    t1.join();
+    t2.join();
+    t3.join();
+
+    waitForLogCompletion(30);
+
+    auto lines = readLogFile();
+    ASSERT_EQ(lines.size(), 30);
+
+    // Sequence numbers should now be present in the log lines
+
+    // Extract sequence numbers from log lines and verify they are in ascending order
+    std::vector<uint64_t> sequence_numbers;
+    for (const auto& line : lines) {
+        // Look for pattern [Seq: 123]
+        size_t seq_start = line.find("[Seq: ");
+        if (seq_start != std::string::npos) {
+            seq_start += 6;  // Skip "[Seq: "
+            size_t seq_end = line.find("]", seq_start);
+            if (seq_end != std::string::npos) {
+                std::string seq_str = line.substr(seq_start, seq_end - seq_start);
+                sequence_numbers.push_back(std::stoull(seq_str));
+            }
+        }
+    }
+
+    // Verify we extracted all sequence numbers
+    ASSERT_EQ(sequence_numbers.size(), 30);
+
+    // Debug: Print first few sequence numbers to understand the pattern
+    std::cout << "First 10 sequence numbers: ";
+    for (size_t i = 0; i < std::min(sequence_numbers.size(), size_t(10)); ++i) {
+        std::cout << sequence_numbers[i] << " ";
+    }
+    std::cout << std::endl;
+
+    // Verify sequence numbers are in ascending order (0, 1, 2, ..., 29)
+    for (size_t i = 0; i < sequence_numbers.size(); ++i) {
+        EXPECT_EQ(sequence_numbers[i], i)
+            << "Sequence number at position " << i << " should be " << i
+            << " but was " << sequence_numbers[i];
+    }
+}
+#endif
 
 }

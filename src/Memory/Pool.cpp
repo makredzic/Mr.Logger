@@ -12,6 +12,7 @@ namespace MR::Memory {
     }
     
     std::unique_ptr<Buffer> Pool::tryAcquire() {
+        std::lock_guard<std::mutex> lock(mutex_);
         for (size_t i = 0; i < pool_size; ++i) {
             size_t idx = next_index.fetch_add(1, std::memory_order_relaxed) % pool_size;
             if (buffers[idx]) {
@@ -27,7 +28,8 @@ namespace MR::Memory {
         if (buffer->capacity != buffer_size) {
             return false;
         }
-        
+
+        std::lock_guard<std::mutex> lock(mutex_);
         for (size_t i = 0; i < pool_size; ++i) {
             if (!buffers[i]) {
                 buffers[i] = std::move(buffer);

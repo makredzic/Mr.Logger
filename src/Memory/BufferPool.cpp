@@ -12,19 +12,27 @@ BufferPool::~BufferPool() = default;
 
 std::unique_ptr<Buffer> BufferPool::acquire(size_t required_size) {
     std::unique_ptr<Buffer> buffer = nullptr;
-    
+
     if (required_size <= SMALL_BUFFER_SIZE) {
         buffer = small_pool_.tryAcquire();
+        if (!buffer) {
+            buffer = createBuffer(SMALL_BUFFER_SIZE);
+        }
     } else if (required_size <= MEDIUM_BUFFER_SIZE) {
         buffer = medium_pool_.tryAcquire();
+        if (!buffer) {
+            buffer = createBuffer(MEDIUM_BUFFER_SIZE);
+        }
     } else if (required_size <= LARGE_BUFFER_SIZE) {
         buffer = large_pool_.tryAcquire();
-    }
-    
-    if (!buffer) {
+        if (!buffer) {
+            buffer = createBuffer(LARGE_BUFFER_SIZE);
+        }
+    } else {
+        // For very large requests that exceed all pool sizes
         buffer = createBuffer(required_size);
     }
-    
+
     return buffer;
 }
 

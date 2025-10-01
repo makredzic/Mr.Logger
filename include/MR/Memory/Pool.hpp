@@ -4,6 +4,7 @@
 #include <memory>
 #include <atomic>
 #include <vector>
+#include <mutex>
 
 namespace MR::Memory {
 struct Pool {
@@ -11,9 +12,10 @@ struct Pool {
     std::atomic<size_t> next_index{0};
     size_t pool_size;
     size_t buffer_size;
-    
+    mutable std::mutex mutex_;
+
     Pool(size_t pool_sz, size_t buf_sz);
-    
+
     std::unique_ptr<Buffer> tryAcquire();
     bool tryRelease(std::unique_ptr<Buffer> buffer);
 };
