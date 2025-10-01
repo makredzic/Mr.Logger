@@ -83,11 +83,11 @@ MR::Logger::init({
 ```
 
 ### Formatting
-The open-source library `fmt` is used for powerful, fast and type-safe formatting.
+The open-source library [fmt](https://github.com/fmtlib/fmt) is used for powerful, fast and type-safe formatting. Anything `fmt::format` supports, MrLogger supports too!
 
 ```cpp
 log->info("Test 1");
-log->info("Test {}", 2); // "Test 2"
+log->info("Test {} + {} is {}?", 2, 3, 1000); // "Test 2 + 3 is 1000?
 ```
 
 To easily log a custom struct, simply register a transformation function that shows the string representation of your struct.
