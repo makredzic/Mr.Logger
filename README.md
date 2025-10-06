@@ -171,6 +171,49 @@ ninja benchmarks # in the build dir
 python3 benchmark_runner.py 3
 ```
 
+## Using MRLogger as a Library
+
+MRLogger builds as a static library (`libmrlogger.a`) and can be integrated into other projects as a Meson subproject. The build produces:
+- **Static library**: `libmrlogger.a` - All logger functionality
+- **Tests and Benchmarks**: Link against the library
+
+### Integration via Wrap File (Recommended)
+
+Create `subprojects/mrlogger.wrap` in your project:
+
+```ini
+[wrap-git]
+url = https://github.com/yourusername/mrlogger.git
+revision = main
+depth = 1
+
+[provide]
+mrlogger = mrlogger_dep
+```
+
+In your `meson.build`:
+
+```meson
+mrlogger_dep = dependency('mrlogger', fallback: ['mrlogger', 'mrlogger_dep'])
+
+executable('myapp', 'main.cpp', dependencies: mrlogger_dep)
+```
+
+### Integration via Git Submodule
+
+```bash
+git submodule add https://github.com/yourusername/mrlogger.git subprojects/mrlogger
+```
+
+In your `meson.build`:
+
+```meson
+mrlogger_dep = dependency('mrlogger', fallback: ['mrlogger', 'mrlogger_dep'])
+executable('myapp', 'main.cpp', dependencies: mrlogger_dep)
+```
+
+The dependency includes the static library, headers, and transitive dependencies (fmt, liburing, threads) - all handled automatically by Meson.
+
 ## Platform Requirements
 
 - **Linux**: Required for io_uring support

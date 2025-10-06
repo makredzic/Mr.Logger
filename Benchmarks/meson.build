@@ -23,9 +23,10 @@ foreach bench_info : benchmark_config
   exe_name = bench_info[1]
   
   exe = executable(exe_name,
-    [lib_src, benchmark_core_sources, files('src/' + exe_src)],
+    [benchmark_core_sources, files('src/' + exe_src)],
     include_directories: [incdir, benchmark_incdir],
     dependencies: deps,
+    link_with: mrlogger_lib,
     install: false
   )
   

@@ -22,13 +22,35 @@ endif
 
 # --- Subdirectories ---
 subdir('src')
-subdir('test')
-subdir('Benchmarks')
 
-# --- Main executable ---
-executable('main',
-  [lib_src, files('src/main.cpp')],
+# --- Library Target ---
+mrlogger_lib = static_library('mrlogger',
+  lib_src,
   include_directories: incdir,
   dependencies: deps,
+  cpp_args: compile_args,
+  install: true
+)
+
+# --- Declare dependency for use as subproject ---
+mrlogger_dep = declare_dependency(
+  link_with: mrlogger_lib,
+  include_directories: incdir,
+  dependencies: deps
+)
+
+# Make this available to parent projects when used as subproject
+meson.override_dependency('mrlogger', mrlogger_dep)
+
+# --- Main executable (development only) ---
+executable('main',
+  files('src/main.cpp'),
+  include_directories: incdir,
+  dependencies: deps,
+  link_with: mrlogger_lib,
   cpp_args: compile_args
 )
+
+# --- Tests and Benchmarks ---
+subdir('test')
+subdir('Benchmarks')

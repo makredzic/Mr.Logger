@@ -22,9 +22,10 @@ foreach fname : test_filenames
 
   test_exe = executable(
     test_name,
-    [lib_src, files(fname)],
+    files(fname),
     include_directories: [incdir],
     dependencies: [gtest_dep, gmock_dep, deps],
+    link_with: mrlogger_lib,
     cpp_args: compile_args
   )
 
