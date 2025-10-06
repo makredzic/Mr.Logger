@@ -183,7 +183,7 @@ Create `subprojects/mrlogger.wrap` in your project:
 
 ```ini
 [wrap-git]
-url = https://github.com/yourusername/mrlogger.git
+url = https://github.com/makredzic/Mr.Logger
 revision = main
 depth = 1
 
@@ -202,7 +202,7 @@ executable('myapp', 'main.cpp', dependencies: mrlogger_dep)
 ### Integration via Git Submodule
 
 ```bash
-git submodule add https://github.com/yourusername/mrlogger.git subprojects/mrlogger
+git submodule add https://github.com/makredzic/Mr.Logger subprojects/mrlogger
 ```
 
 In your `meson.build`:
