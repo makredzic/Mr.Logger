@@ -145,9 +145,7 @@ Logger::Logger(const Config& config) :
       // Clean up completed tasks
       active_tasks.erase(
           std::remove_if(active_tasks.begin(), active_tasks.end(),
-              [](const Coroutine::WriteTask& task) {
-                  return task.done();
-              }),
+              [](const Coroutine::WriteTask& task) { return task.done(); }),
           active_tasks.end()
       );
       

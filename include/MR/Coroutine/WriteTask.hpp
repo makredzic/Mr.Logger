@@ -1,6 +1,7 @@
 #pragma once
 #include <exception>
 #include <coroutine>
+#include <iostream>
 #include <utility>
 
 
@@ -25,8 +26,19 @@ class WriteTask {
     
     inline explicit WriteTask(std::coroutine_handle<promise_type> h) : h_(h) {}
     inline ~WriteTask() {
-        if (h_)
-            h_.destroy();
+        if (!h_) return;
+
+        if (h_.promise().exception) {
+            try {
+                std::rethrow_exception(h_.promise().exception);
+            } catch (const std::exception& e) {
+                std::cerr << "[MrLogger] Unhandled exception in WriteTask: " << e.what() << '\n';
+            } catch (...) {
+                std::cerr << "[MrLogger] Unhandled unknown exception in WriteTask.\n";
+            }
+        }
+
+        h_.destroy();
     }
     
     // Move only
