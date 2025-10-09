@@ -4,8 +4,22 @@
 #include <MR/Logger/WriteRequest.hpp>
 #include <cstdint>
 #include <memory>
+#include <functional>
+
 namespace MR::Logger {
+
+  using error_handler_t = std::function<void(const std::string&)>;
+  inline void default_error_handler(const std::string& msg) noexcept {
+    const char* prefix = "[MR::Logger ERROR] ";
+    write(STDERR_FILENO, prefix, 19);
+    write(STDERR_FILENO, msg.c_str(), msg.size());
+    write(STDERR_FILENO, "\n", 1);
+  }
+
   struct Config {
+
+    // The handler for all MrLogger internal errors (hopefully none :))
+    error_handler_t internal_error_handler = nullptr;
 
     // All severities always end up here
     std::string log_file_name;

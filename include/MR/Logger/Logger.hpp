@@ -38,7 +38,7 @@
     } \
   };
 
-// 1. The implementation for the 2-argument version (uses a separate function/lambda).
+// The implementation for the 2-argument version (uses a separate function/lambda).
 #define MRLOGGER_TO_STRING_2(type, lambda) \
   template<> \
   struct fmt::formatter<type> { \
@@ -66,6 +66,7 @@ namespace MR::Logger {
     private:
 
       inline static const Config default_config_{
+        .internal_error_handler = default_error_handler,
         .log_file_name = "output.log",
         .max_log_size_bytes = 5 * 1024 * 1024,
         .batch_size = 32u,
@@ -95,22 +96,27 @@ namespace MR::Logger {
       friend class Factory;
       
       Config mergeWithDefault(const Config& user_config);
-      void eventLoop(std::stop_token);
+      void eventLoop(std::stop_token) noexcept;
       size_t formatTo(WriteRequest&& msg, char* buffer, size_t capacity);
       Coroutine::WriteTask processRequest(WriteRequest&&);
+      void reportError(const char* location, const std::string& what) const noexcept;
 
       template<typename T>
-      inline void write(SEVERITY_LEVEL severity, T&& data) {
-        WriteRequest req{
-          .level = severity,
-          .data = std::forward<T>(data),
-          .threadId = std::this_thread::get_id(),
-          .timestamp = std::chrono::system_clock::now()
-#ifdef LOGGER_TEST_SEQUENCE_TRACKING
-          , .sequence_number = 0  // Will be set by StdQueue::push
-#endif
-        };
-        queue_->push(std::move(req));
+      inline void write(SEVERITY_LEVEL severity, T&& data) noexcept {
+        try {
+          WriteRequest req{
+            .level = severity,
+            .data = std::forward<T>(data),
+            .threadId = std::this_thread::get_id(),
+            .timestamp = std::chrono::system_clock::now(),
+            .sequence_number = 0  // Will be set by StdQueue::push if LOGGER_TEST_SEQUENCE_TRACKING is defined
+          };
+          queue_->push(std::move(req));
+        } catch (const std::exception& e) {
+          reportError("write to queue", e.what());
+        } catch (...) {
+          reportError("write to queue", "Unknown exception");
+        }
       }
 
     public:

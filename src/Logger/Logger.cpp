@@ -21,6 +21,10 @@ namespace MR::Logger {
 
 Config Logger::mergeWithDefault(const Config& user_config) {
   return Config{
+  .internal_error_handler = user_config.internal_error_handler == nullptr
+    ? default_config_.internal_error_handler
+    : user_config.internal_error_handler,
+
   .log_file_name = user_config.log_file_name.empty()
       ? default_config_.log_file_name
       : user_config.log_file_name,
@@ -86,7 +90,7 @@ Logger::Logger(const Config& config) :
 
   }
 
-  void Logger::eventLoop(std::stop_token st) {
+  void Logger::eventLoop(std::stop_token st) noexcept {
 
     // Required to hold the state of the coroutines while they
     // are suspended and not finished
@@ -100,26 +104,39 @@ Logger::Logger(const Config& config) :
 
       // NON BLOCKING REMOVAL AS LONG AS THERE ARE ELEMENTS
       while (auto request = queue_->tryPop()) { 
+        try {
+          active_tasks.push_back(processRequest(std::move(request.value())));
 
-        active_tasks.push_back(processRequest(std::move(request.value())));
+          pending_writes++;
+          processed_this_iteration++;
 
-        pending_writes++;
-        processed_this_iteration++;
+          if (pending_writes >= config_.batch_size) {
+            ring_.submitPendingSQEs();
+            pending_writes = 0;
+          }
 
-        if (pending_writes >= config_.batch_size) {
-          ring_.submitPendingSQEs();
-          pending_writes = 0;
+          // Prevents too many requests from causing this loop to stall 
+          // and processCompletions not being called below
+          if (processed_this_iteration >= config_.max_logs_per_iteration) break;
+
+        } catch (const std::exception& e) {
+          reportError("eventLoop:processing", e.what());
+        } catch (...) {
+          reportError("eventLoop:processing", "Unknown exception");
         }
-
-        // Prevents too many requests from causing this loop to stall 
-        // and processCompletions not being called below
-        if (processed_this_iteration >= config_.max_logs_per_iteration) break;
       }
 
-      // Submit any remaining writes
+
+      // Submit any remaining requests
       if (pending_writes > 0) {
-        ring_.submitPendingSQEs();
-        pending_writes = 0;
+        try {
+          ring_.submitPendingSQEs();
+          pending_writes = 0;
+        } catch (const std::exception& e) {
+          reportError("eventLoop:submit", e.what());
+        } catch (...) {
+          reportError("eventLoop:submit", "unknown exception");
+        }
       }
       
       // Process CQEs (maybe dispatch to thread pool)
@@ -173,6 +190,7 @@ Logger::Logger(const Config& config) :
     if (bytes_written < 0) {
         // Log error or handle failed write
         // Could implement retry logic here
+        reportError("processRequest:resumedCoroutine", "A negative amount of bytes_written has been returned by io_uring's write call.");
     } else {
         // Update file rotater with bytes written
         file_rotater_.updateCurrentSize(bytes_written);
@@ -260,6 +278,16 @@ Logger::Logger(const Config& config) :
   }
   void Logger::_reset() {
     Factory::_reset();
+  }
+
+  void Logger::reportError(const char* location, const std::string& what) const noexcept {
+    try {
+      std::string msg = std::string("[") + location + "] " + what;
+      config_.internal_error_handler(msg);
+    } catch (...) { // If error handler itself throws, fall back to raw stderr
+      const char* critical = "[MR::Logger CRITICAL] Error handler threw\n";
+      ::write(STDERR_FILENO, critical, strlen(critical));
+    }
   }
 
   // Namespace-level convenience functions

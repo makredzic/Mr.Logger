@@ -42,6 +42,25 @@ class WriteTask {
 
     inline bool done() const { return h_.done(); }
 
+    // Check if exception occurred
+    inline bool has_exception() const noexcept {
+        if (!h_) return false;
+        return h_.promise().exception != nullptr;
+    }
+
+    // Get the exception pointer
+    inline std::exception_ptr get_exception() const noexcept {
+        if (!h_) return nullptr;
+        return h_.promise().exception;
+    }
+
+    // Rethrow if exception occurred
+    inline void rethrow_if_exception() const {
+        if (has_exception()) {
+            std::rethrow_exception(get_exception());
+        }
+    }
+
   private:
     std::coroutine_handle<promise_type> h_;
 
