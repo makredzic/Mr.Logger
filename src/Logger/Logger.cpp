@@ -7,6 +7,7 @@
 #include <MR/Coroutine/WriteTask.hpp>
 
 
+#include <iostream>
 #include <stdexcept>
 #include <stop_token>
 #include <string>
@@ -82,7 +83,19 @@ Logger::Logger(const Config& config) :
   ring_{config_.queue_depth},
   queue_{config_._queue},
   file_rotater_{config_.log_file_name, config_.max_log_size_bytes},
-  worker_{[this](std::stop_token st){ eventLoop(st); }} {
+  worker_{
+  [this](std::stop_token st){ 
+      try {
+        eventLoop(st); 
+      } catch (const std::exception& e) {
+        std::cerr << "[MrLogger] Exception caught from main eventLoop. Shutting down logger. Exception = " << e.what() << "\n";
+      } catch (...) {
+        std::cerr << "[MrLogger] Unknown exception caught from main eventLoop. Shutting down logger.\n";
+      }
+
+      queue_->shutdown();
+    }
+  } {
 
     if (config_.max_logs_per_iteration > config_.queue_depth) {
       throw std::invalid_argument{"When configuring queue_depth, it must be at the number of max_logs_per_iteration or bigger."};
@@ -90,7 +103,7 @@ Logger::Logger(const Config& config) :
 
   }
 
-  void Logger::eventLoop(std::stop_token st) noexcept {
+  void Logger::eventLoop(std::stop_token st) {
 
     // Required to hold the state of the coroutines while they
     // are suspended and not finished

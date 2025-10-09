@@ -96,7 +96,7 @@ namespace MR::Logger {
       friend class Factory;
       
       Config mergeWithDefault(const Config& user_config);
-      void eventLoop(std::stop_token) noexcept;
+      void eventLoop(std::stop_token);
       size_t formatTo(WriteRequest&& msg, char* buffer, size_t capacity);
       Coroutine::WriteTask processRequest(WriteRequest&&);
       void reportError(const char* location, const std::string& what) const noexcept;
@@ -122,34 +122,34 @@ namespace MR::Logger {
     public:
 
       template<typename... Args>
-      inline void info(fmt::format_string<Args...> fmt_str, Args&&... args) {
+      inline void info(fmt::format_string<Args...> fmt_str, Args&&... args) noexcept {
         write(SEVERITY_LEVEL::INFO, fmt::format(fmt_str, std::forward<Args>(args)...));
       }
 
       template<typename T>
-      inline void info(T&& str) 
+      inline void info(T&& str) noexcept
         requires std::is_convertible_v<std::remove_cvref_t<T>, std::string> {
         write(SEVERITY_LEVEL::INFO, std::forward<T>(str));
       }
 
       template<typename... Args>
-      inline void warn(fmt::format_string<Args...> fmt_str, Args&&... args) {
+      inline void warn(fmt::format_string<Args...> fmt_str, Args&&... args) noexcept {
         write(SEVERITY_LEVEL::WARN, fmt::format(fmt_str, std::forward<Args>(args)...));
       }
 
       template<typename T>
-      inline void warn(T&& str) 
+      inline void warn(T&& str) noexcept
         requires std::is_convertible_v<std::remove_cvref_t<T>, std::string> {
         write(SEVERITY_LEVEL::WARN, std::forward<T>(str));
       }
 
       template<typename... Args>
-      inline void error(fmt::format_string<Args...> fmt_str, Args&&... args) {
+      inline void error(fmt::format_string<Args...> fmt_str, Args&&... args) noexcept {
         write(SEVERITY_LEVEL::ERROR, fmt::format(fmt_str, std::forward<Args>(args)...));
       }
 
       template<typename T>
-      inline void error(T&& str) 
+      inline void error(T&& str) noexcept
         requires std::is_convertible_v<std::remove_cvref_t<T>, std::string> {
         write(SEVERITY_LEVEL::ERROR, std::forward<T>(str));
       }

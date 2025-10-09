@@ -36,6 +36,8 @@ namespace MR::Queue {
       
       bool stop_{false};
 
+    public:
+
       inline void shutdown() override {
         {
           LOCK();
@@ -43,8 +45,6 @@ namespace MR::Queue {
         }
         cv_.notify_all();
       }
-
-    public:
 
       inline StdQueue() = default;
       inline ~StdQueue() {
