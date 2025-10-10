@@ -28,7 +28,6 @@ protected:
             .log_file_name = test_log_file_.string(),
             .max_log_size_bytes = 100 * 1024 * 1024,
             .batch_size = 50,
-            .max_logs_per_iteration = 64,
             .queue_depth = 64,
             ._queue = std::make_shared<Queue::StdQueue<WriteRequest>>()
         };

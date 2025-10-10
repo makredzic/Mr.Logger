@@ -35,6 +35,7 @@ public:
         auto default_logger_config = MR::Logger::Logger::defaultConfig();
         std::string thread_suffix = thread_count > 1 ? "_MultiThread" : "_SingleThread";
         default_logger_config.log_file_name = "Bench_Default" + thread_suffix + ".log";
+        default_logger_config.shutdown_timeout_seconds = 8u;
 
         config.logger_config = default_logger_config;
 
@@ -48,7 +49,6 @@ public:
             .log_file_name = "Bench_Small" + thread_suffix + ".log",
             .max_log_size_bytes = 5 * 1024 * 1024,
             .batch_size = 32u,
-            .max_logs_per_iteration = 128u,
             .queue_depth = 256u,
             .small_buffer_pool_size = 128u,
             .medium_buffer_pool_size = 64u,
@@ -56,6 +56,7 @@ public:
             .small_buffer_size = 1024u,
             .medium_buffer_size = 4096u,
             .large_buffer_size = 16384u,
+            .shutdown_timeout_seconds = 8u,
             ._queue = std::make_shared<MR::Queue::StdQueue<MR::Logger::WriteRequest>>(),
         };
         return config;
@@ -67,8 +68,7 @@ public:
         config.logger_config = MR::Logger::Config{
             .log_file_name = "Bench_Large" + thread_suffix + ".log",
             .max_log_size_bytes = 5 * 1024 * 1024,
-            .batch_size = 1024u,
-            .max_logs_per_iteration = 2048u,
+            .batch_size = 128u,
             .queue_depth = 4096u,
             .small_buffer_pool_size = 512u,
             .medium_buffer_pool_size = 256u,
@@ -76,6 +76,7 @@ public:
             .small_buffer_size = 1024u,
             .medium_buffer_size = 4096u,
             .large_buffer_size = 16384u,
+            .shutdown_timeout_seconds = 8u,
             ._queue = std::make_shared<MR::Queue::StdQueue<MR::Logger::WriteRequest>>(),
         };
         return config;

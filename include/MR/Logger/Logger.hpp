@@ -70,7 +70,6 @@ namespace MR::Logger {
         .log_file_name = "output.log",
         .max_log_size_bytes = 5 * 1024 * 1024,
         .batch_size = 32u,
-        .max_logs_per_iteration = 128u,
         .queue_depth = 512u,
         .small_buffer_pool_size = 512u,
         .medium_buffer_pool_size = 256u,
@@ -78,11 +77,13 @@ namespace MR::Logger {
         .small_buffer_size = 1024u,
         .medium_buffer_size = 4096u,
         .large_buffer_size = 16384u,
+        .shutdown_timeout_seconds = 3u,
         ._queue = std::make_shared<Queue::StdQueue<WriteRequest>>(),
       };
 
 
       Config config_;
+      uint16_t max_logs_per_iteration_;
       IO::WriteOnlyFile file_;
       IO::IOUring ring_;
       std::shared_ptr<Interface::ThreadSafeQueue<WriteRequest>> queue_ = nullptr;
@@ -168,6 +169,7 @@ namespace MR::Logger {
       void error(const std::string& str);
 
       inline static const Config& defaultConfig() { return default_config_; }
+      inline uint16_t getMaxLogsPerIteration() const { return max_logs_per_iteration_; }
 
     private:
       // Factory class for singleton access

@@ -145,9 +145,9 @@ nanoseconds measureSpdLoggerMultiThreaded(std::shared_ptr<spdlog::logger> logger
 
 
 BenchmarkResult run_mrlogger_benchmark(const BenchmarkConfig& config) {
-    
+
     deleteIfExists(config.logger_config.log_file_name);
-    
+
     const size_t msgs_per_thread = config.total_messages / config.thread_count;
 
     MR::Logger::init(config.logger_config);
@@ -175,7 +175,7 @@ BenchmarkResult run_mrlogger_benchmark(const BenchmarkConfig& config) {
     
     result.config_details.mrlogger.queue_depth = config.logger_config.queue_depth;
     result.config_details.mrlogger.batch_size = config.logger_config.batch_size;
-    result.config_details.mrlogger.max_logs_per_iteration = config.logger_config.max_logs_per_iteration;
+    result.config_details.mrlogger.max_logs_per_iteration = logger->getMaxLogsPerIteration();
     
     return result;
 }
