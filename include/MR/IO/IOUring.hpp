@@ -1,8 +1,6 @@
 #pragma once
 
-#include <bit>
 #include <cstddef>
-#include <iostream>
 #include <liburing.h>
 #include <stdexcept>
 #include <coroutine>
@@ -22,7 +20,7 @@ public:
     const WriteOnlyFile& file;
     void* buffer;
     size_t len;
-    int result = -1;  // Store io_uring result
+    int result = -1; 
     
     bool await_ready() { return false; }
     void await_suspend(std::coroutine_handle<> h) {
@@ -33,18 +31,15 @@ public:
         bool success = ring->prepareWrite(file, buffer, len, user_data);
         if (!success) {
           delete user_data;
-          // Store error result and resume immediately
           result = -EAGAIN;
           h.resume();
         }
       } catch (...) {
-        // Failed to allocate UserData - resume with error
         result = -ENOMEM;
         h.resume();
       }
     }
     int await_resume() {
-      // Return the I/O result (bytes written or error)
       return result;
     }
   };
