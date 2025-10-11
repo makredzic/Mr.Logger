@@ -35,7 +35,8 @@ public:
         auto default_logger_config = MR::Logger::Logger::defaultConfig();
         std::string thread_suffix = thread_count > 1 ? "_MultiThread" : "_SingleThread";
         default_logger_config.log_file_name = "Bench_Default" + thread_suffix + ".log";
-        default_logger_config.shutdown_timeout_seconds = 8u;
+        default_logger_config.max_log_size_bytes = 200 * 1024 * 1024; // 200MB - prevent rotation during benchmark
+        default_logger_config.shutdown_timeout_seconds = 60u;
 
         config.logger_config = default_logger_config;
 
@@ -47,7 +48,7 @@ public:
         std::string thread_suffix = thread_count > 1 ? "_MultiThread" : "_SingleThread";
         config.logger_config = MR::Logger::Config{
             .log_file_name = "Bench_Small" + thread_suffix + ".log",
-            .max_log_size_bytes = 5 * 1024 * 1024,
+            .max_log_size_bytes = 200 * 1024 * 1024, // 200MB - prevent rotation during benchmark
             .batch_size = 32u,
             .queue_depth = 256u,
             .small_buffer_pool_size = 128u,
@@ -56,7 +57,7 @@ public:
             .small_buffer_size = 1024u,
             .medium_buffer_size = 4096u,
             .large_buffer_size = 16384u,
-            .shutdown_timeout_seconds = 8u,
+            .shutdown_timeout_seconds = 60u,
             ._queue = std::make_shared<MR::Queue::StdQueue<MR::Logger::WriteRequest>>(),
         };
         return config;
@@ -67,7 +68,7 @@ public:
         std::string thread_suffix = thread_count > 1 ? "_MultiThread" : "_SingleThread";
         config.logger_config = MR::Logger::Config{
             .log_file_name = "Bench_Large" + thread_suffix + ".log",
-            .max_log_size_bytes = 5 * 1024 * 1024,
+            .max_log_size_bytes = 200 * 1024 * 1024, // 200MB - prevent rotation during benchmark
             .batch_size = 128u,
             .queue_depth = 4096u,
             .small_buffer_pool_size = 512u,
@@ -76,7 +77,7 @@ public:
             .small_buffer_size = 1024u,
             .medium_buffer_size = 4096u,
             .large_buffer_size = 16384u,
-            .shutdown_timeout_seconds = 8u,
+            .shutdown_timeout_seconds = 60u,
             ._queue = std::make_shared<MR::Queue::StdQueue<MR::Logger::WriteRequest>>(),
         };
         return config;

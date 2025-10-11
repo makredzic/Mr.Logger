@@ -8,20 +8,22 @@ namespace MR::Benchmarks {
 
 struct BenchmarkResult {
     std::chrono::nanoseconds duration;
+    std::chrono::nanoseconds end_to_end_duration;
     size_t total_msgs_logged;
     size_t msgs_per_thread;
     double messages_per_second;
+    double end_to_end_messages_per_second;
     std::string benchmark_name;
     std::string log_file_name;
     size_t thread_count;
-    
+
     union {
         struct {
             uint16_t queue_depth;
             uint16_t batch_size;
             uint16_t max_logs_per_iteration;
         } mrlogger;
-        
+
         struct {
             bool is_spdlog;
         } spdlog;
