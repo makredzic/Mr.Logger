@@ -16,6 +16,7 @@
 #include <MR/IO/WriteOnlyFile.hpp>
 #include <MR/IO/IOUring.hpp>
 #include <MR/IO/FileRotater.hpp>
+#include <MR/IO/WritePreparer.hpp>
 
 #include <MR/Interface/ThreadSafeQueue.hpp>
 #include <memory>
@@ -104,9 +105,7 @@ namespace MR::Logger {
       
       Config mergeWithDefault(const Config& user_config);
       void eventLoop(std::stop_token);
-      size_t formatTo(WriteRequest&& msg, char* buffer, size_t capacity);
-      Coroutine::WriteTask processRequest(WriteRequest&&);
-      Coroutine::WriteTask processCoalescedWriteWithBuffer(std::unique_ptr<Memory::Buffer> buffer);
+      Coroutine::WriteTask submitWrite(std::unique_ptr<Memory::Buffer> buffer);
       void reportError(const char* location, const std::string& what) const noexcept;
 
       template<typename T>

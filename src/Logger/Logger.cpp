@@ -141,11 +141,15 @@ Logger::Logger(const Config& config) :
 
     size_t pending_writes = 0;
 
-    // Staging buffer for write coalescing
-    constexpr size_t STAGING_BUFFER_SIZE = 16384; // 16KB
-    auto staging_buffer = std::make_unique<char[]>(STAGING_BUFFER_SIZE);
-    size_t staging_offset = 0;
-    size_t messages_in_staging = 0;
+    // Create WritePreparer to handle message formatting and coalescing
+    IO::WritePreparer preparer(
+        IO::WritePreparer::Config{
+            .coalesce_size = config_.coalesce_size,
+            .staging_buffer_size = 16384  // 16KB
+        },
+        buffer_pool_,
+        [this](const char* loc, const std::string& msg) { reportError(loc, msg); }
+    );
 
     while(!st.stop_requested() || !queue_->empty() || !active_tasks.empty()) {
 
@@ -177,80 +181,24 @@ Logger::Logger(const Config& config) :
         }
 
         try {
-          // Check if write coalescing is enabled
-          if (config_.coalesce_size > 1) {
-            // Format message directly into staging buffer
-            size_t formatted_size = formatTo(
-              std::move(request.value()),
-              staging_buffer.get() + staging_offset,
-              STAGING_BUFFER_SIZE - staging_offset
-            );
+          // Prepare the write request (format and optionally coalesce)
+          auto prepared = preparer.prepareWrite(std::move(request.value()));
 
-            // Check if formatting succeeded (didn't overflow)
-            if (formatted_size > 0 && staging_offset + formatted_size <= STAGING_BUFFER_SIZE) {
-              staging_offset += formatted_size;
-              messages_in_staging++;
-              processed_this_iteration++;
-
-              // Flush staging buffer when:
-              // 1. Reached coalesce threshold, OR
-              // 2. Buffer is nearly full (>90%)
-              bool should_flush = (messages_in_staging >= config_.coalesce_size) ||
-                                 (staging_offset > STAGING_BUFFER_SIZE * 9 / 10);
-
-              if (should_flush && staging_offset > 0) {
-                // Copy staging buffer to persistent buffer from pool
-                auto persistent_buffer = buffer_pool_.acquire(staging_offset);
-                std::memcpy(persistent_buffer->data, staging_buffer.get(), staging_offset);
-                persistent_buffer->size = staging_offset;
-
-                // Submit entire buffer as ONE write
-                active_tasks.push_back(processCoalescedWriteWithBuffer(std::move(persistent_buffer)));
-                active_task_count_.fetch_add(1, std::memory_order_release);
-
-                pending_writes++;
-                staging_offset = 0;
-                messages_in_staging = 0;
-
-                if (pending_writes >= config_.batch_size) {
-                  if (!ring_.submitPendingSQEs()) {
-                    reportError("eventLoop:submit", "Failed to submit batch. io_uring may be degraded.");
-                  }
-                  pending_writes = 0;
-                }
-              }
-            } else {
-              // Buffer overflow - flush current buffer and retry this message
-              if (staging_offset > 0) {
-                auto persistent_buffer = buffer_pool_.acquire(staging_offset);
-                std::memcpy(persistent_buffer->data, staging_buffer.get(), staging_offset);
-                persistent_buffer->size = staging_offset;
-                active_tasks.push_back(processCoalescedWriteWithBuffer(std::move(persistent_buffer)));
-                active_task_count_.fetch_add(1, std::memory_order_release);
-                pending_writes++;
-                staging_offset = 0;
-                messages_in_staging = 0;
-              }
-
-              // Process this message individually as fallback
-              active_tasks.push_back(processRequest(std::move(request.value())));
-              active_task_count_.fetch_add(1, std::memory_order_release);
-              pending_writes++;
-              processed_this_iteration++;
-            }
-          } else {
-            // Coalescing disabled - process each message individually (original behavior)
-            active_tasks.push_back(processRequest(std::move(request.value())));
+          // If we got a buffer back, submit it for writing
+          if (prepared.buffer) {
+            active_tasks.push_back(submitWrite(std::move(prepared.buffer)));
             active_task_count_.fetch_add(1, std::memory_order_release);
             pending_writes++;
-            processed_this_iteration++;
+          }
 
-            if (pending_writes >= config_.batch_size) {
-              if (!ring_.submitPendingSQEs()) {
-                reportError("eventLoop:submit", "Failed to submit batch. io_uring may be degraded.");
-              }
-              pending_writes = 0;
+          processed_this_iteration++;
+
+          // Submit batch if we've accumulated enough writes or preparer says so
+          if (prepared.should_flush_batch || pending_writes >= config_.batch_size) {
+            if (!ring_.submitPendingSQEs()) {
+              reportError("eventLoop:submit", "Failed to submit batch. io_uring may be degraded.");
             }
+            pending_writes = 0;
           }
 
           // Prevents too many requests from causing this loop to stall
@@ -264,22 +212,17 @@ Logger::Logger(const Config& config) :
         }
       }
 
-      // Flush any remaining data in staging buffer
-      if (staging_offset > 0) {
-        try {
-          auto persistent_buffer = buffer_pool_.acquire(staging_offset);
-          std::memcpy(persistent_buffer->data, staging_buffer.get(), staging_offset);
-          persistent_buffer->size = staging_offset;
-          active_tasks.push_back(processCoalescedWriteWithBuffer(std::move(persistent_buffer)));
+      // Flush any remaining data in preparer's staging buffer
+      try {
+        auto flushed = preparer.flushStaged();
+        if (flushed.has_value()) {
+          active_tasks.push_back(submitWrite(std::move(flushed.value())));
           active_task_count_.fetch_add(1, std::memory_order_release);
           pending_writes++;
-          staging_offset = 0;
-          messages_in_staging = 0;
-        } catch (const std::exception& e) {
-          reportError("eventLoop:flush_staging", e.what());
         }
+      } catch (const std::exception& e) {
+        reportError("eventLoop:flush_staging", e.what());
       }
-
 
       // Submit any remaining requests
       if (pending_writes > 0) {
@@ -330,8 +273,7 @@ Logger::Logger(const Config& config) :
     }
   }
 
-  Coroutine::WriteTask Logger::processRequest(WriteRequest&& request) {
-
+  Coroutine::WriteTask Logger::submitWrite(std::unique_ptr<Memory::Buffer> buffer) {
     try {
       // Check if file rotation is needed
       if (file_rotater_.shouldRotate()) {
@@ -339,98 +281,25 @@ Logger::Logger(const Config& config) :
         file_.reopen(file_rotater_.getCurrentFilename());
       }
 
-      // Estimate required buffer size (with some padding for safety)
-      size_t estimated_size = request.data.size() + 256; // Extra for timestamp, level, thread ID
-
-      // Acquire buffer from pool
-      auto buffer = buffer_pool_.acquire(estimated_size);
-
-      // Format directly into buffer
-      size_t actual_size = formatTo(std::move(request), buffer->as_char(), buffer->capacity);
-      buffer->size = actual_size;
-
-      // Submit write and wait for completion
+      // Submit write to io_uring and wait for completion
       int bytes_written = co_await ring_.write(file_, buffer->data, buffer->size);
 
-      // THIS IS RESUMED AFTER THE KERNEL CONSUMES THE CQE
-      // Todo: add possible thread pool task
+      // Release buffer back to pool after write completes
       buffer_pool_.release(std::move(buffer));
+
       // Handle write result
       if (bytes_written < 0) {
-        reportError("processRequest:write", "io_uring write failed with error code: " + std::to_string(bytes_written));
+        reportError("submitWrite", "io_uring write failed with error code: " + std::to_string(bytes_written));
       } else {
         // Update file rotater with bytes written
         file_rotater_.updateCurrentSize(bytes_written);
       }
-
     } catch (const std::exception& e) {
-      reportError("processRequest", e.what());
+      reportError("submitWrite", e.what());
     } catch (...) {
-      reportError("processRequest", "Unknown exception");
+      reportError("submitWrite", "Unknown exception");
     }
   }
-
-  Coroutine::WriteTask Logger::processCoalescedWriteWithBuffer(std::unique_ptr<Memory::Buffer> buffer) {
-    try {
-      // Check if file rotation is needed
-      if (file_rotater_.shouldRotate()) {
-        file_rotater_.rotate();
-        file_.reopen(file_rotater_.getCurrentFilename());
-      }
-
-      // Write the coalesced buffer (data is already formatted)
-      int bytes_written = co_await ring_.write(file_, buffer->data, buffer->size);
-
-      // THIS IS RESUMED AFTER THE KERNEL CONSUMES THE CQE
-      buffer_pool_.release(std::move(buffer));
-
-      if (bytes_written < 0) {
-        reportError("processCoalescedWrite:write", "io_uring write failed with error code: " + std::to_string(bytes_written));
-      } else {
-        // Update file rotater with bytes written
-        file_rotater_.updateCurrentSize(bytes_written);
-      }
-
-    } catch (const std::exception& e) {
-      reportError("processCoalescedWrite", e.what());
-    } catch (...) {
-      reportError("processCoalescedWrite", "Unknown exception");
-    }
-  }
-
-  size_t Logger::formatTo(WriteRequest&& writeRequest, char* buffer, size_t capacity) {
-
-#ifdef LOGGER_TEST_SEQUENCE_TRACKING
-    // Debug: This should be executed when testing
-    auto result = fmt::format_to_n(
-      buffer, capacity - 1,  // Reserve space for null terminator
-      "[{}] [{}] [Thread: {}] [Seq: {}]: {}\n",
-      writeRequest.timestamp,
-      sevLvlToStr(writeRequest.level),
-      writeRequest.threadId,
-      writeRequest.sequence_number,
-      std::move(writeRequest.data)
-    );
-#else
-    // Debug: This should NOT be executed when testing
-    auto result = fmt::format_to_n(
-      buffer, capacity - 1,  // Reserve space for null terminator
-      "[{}] [{}] [Thread: {}]: {}\n",
-      writeRequest.timestamp,
-      sevLvlToStr(writeRequest.level),
-      writeRequest.threadId,
-      std::move(writeRequest.data)
-    );
-#endif
-    
-    // Null terminate (myb not necessary for io_uring??)
-    if (result.size < capacity) {
-      buffer[result.size] = '\0';
-    }
-    
-    return result.size;
-  }
-
 
   Logger::~Logger() {
 
