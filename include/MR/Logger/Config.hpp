@@ -58,6 +58,11 @@ namespace MR::Logger {
     // 3) ???
     std::shared_ptr<Interface::ThreadSafeQueue<WriteRequest>> _queue;
 
+    // Number of log messages to coalesce into a single io_uring write operation
+    // Higher values = fewer io_uring operations, better throughput
+    // Lower values = lower latency per message
+    // 0 = disable coalescing (format and write each message individually)
+    uint16_t coalesce_size;
 
   };
 }

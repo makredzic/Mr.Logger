@@ -14,6 +14,7 @@
 #include <thread>
 #include <future>
 #include <cmath>
+#include <list>
 
 #include <fmt/core.h>
 #include <fmt/std.h>
@@ -74,7 +75,11 @@ Config Logger::mergeWithDefault(const Config& user_config) {
 
   ._queue = user_config._queue == nullptr
     ? default_config_._queue
-    : user_config._queue
+    : user_config._queue,
+
+  .coalesce_size = user_config.coalesce_size == 0
+    ? default_config_.coalesce_size
+    : user_config.coalesce_size
   };
 }
 
@@ -131,10 +136,16 @@ Logger::Logger(const Config& config) :
 
     // Required to hold the state of the coroutines while they
     // are suspended and not finished
-    std::vector<Coroutine::WriteTask> active_tasks;
-    active_tasks.reserve(max_logs_per_iteration_*2);
+    // Using std::list for O(1) removal of completed tasks
+    std::list<Coroutine::WriteTask> active_tasks;
 
     size_t pending_writes = 0;
+
+    // Staging buffer for write coalescing
+    constexpr size_t STAGING_BUFFER_SIZE = 16384; // 16KB
+    auto staging_buffer = std::make_unique<char[]>(STAGING_BUFFER_SIZE);
+    size_t staging_offset = 0;
+    size_t messages_in_staging = 0;
 
     while(!st.stop_requested() || !queue_->empty() || !active_tasks.empty()) {
 
@@ -166,17 +177,80 @@ Logger::Logger(const Config& config) :
         }
 
         try {
-          active_tasks.push_back(processRequest(std::move(request.value())));
-          active_task_count_.fetch_add(1, std::memory_order_release);
+          // Check if write coalescing is enabled
+          if (config_.coalesce_size > 1) {
+            // Format message directly into staging buffer
+            size_t formatted_size = formatTo(
+              std::move(request.value()),
+              staging_buffer.get() + staging_offset,
+              STAGING_BUFFER_SIZE - staging_offset
+            );
 
-          pending_writes++;
-          processed_this_iteration++;
+            // Check if formatting succeeded (didn't overflow)
+            if (formatted_size > 0 && staging_offset + formatted_size <= STAGING_BUFFER_SIZE) {
+              staging_offset += formatted_size;
+              messages_in_staging++;
+              processed_this_iteration++;
 
-          if (pending_writes >= config_.batch_size) {
-            if (!ring_.submitPendingSQEs()) {
-              reportError("eventLoop:submit", "Failed to submit batch. io_uring may be degraded.");
+              // Flush staging buffer when:
+              // 1. Reached coalesce threshold, OR
+              // 2. Buffer is nearly full (>90%)
+              bool should_flush = (messages_in_staging >= config_.coalesce_size) ||
+                                 (staging_offset > STAGING_BUFFER_SIZE * 9 / 10);
+
+              if (should_flush && staging_offset > 0) {
+                // Copy staging buffer to persistent buffer from pool
+                auto persistent_buffer = buffer_pool_.acquire(staging_offset);
+                std::memcpy(persistent_buffer->data, staging_buffer.get(), staging_offset);
+                persistent_buffer->size = staging_offset;
+
+                // Submit entire buffer as ONE write
+                active_tasks.push_back(processCoalescedWriteWithBuffer(std::move(persistent_buffer)));
+                active_task_count_.fetch_add(1, std::memory_order_release);
+
+                pending_writes++;
+                staging_offset = 0;
+                messages_in_staging = 0;
+
+                if (pending_writes >= config_.batch_size) {
+                  if (!ring_.submitPendingSQEs()) {
+                    reportError("eventLoop:submit", "Failed to submit batch. io_uring may be degraded.");
+                  }
+                  pending_writes = 0;
+                }
+              }
+            } else {
+              // Buffer overflow - flush current buffer and retry this message
+              if (staging_offset > 0) {
+                auto persistent_buffer = buffer_pool_.acquire(staging_offset);
+                std::memcpy(persistent_buffer->data, staging_buffer.get(), staging_offset);
+                persistent_buffer->size = staging_offset;
+                active_tasks.push_back(processCoalescedWriteWithBuffer(std::move(persistent_buffer)));
+                active_task_count_.fetch_add(1, std::memory_order_release);
+                pending_writes++;
+                staging_offset = 0;
+                messages_in_staging = 0;
+              }
+
+              // Process this message individually as fallback
+              active_tasks.push_back(processRequest(std::move(request.value())));
+              active_task_count_.fetch_add(1, std::memory_order_release);
+              pending_writes++;
+              processed_this_iteration++;
             }
-            pending_writes = 0;
+          } else {
+            // Coalescing disabled - process each message individually (original behavior)
+            active_tasks.push_back(processRequest(std::move(request.value())));
+            active_task_count_.fetch_add(1, std::memory_order_release);
+            pending_writes++;
+            processed_this_iteration++;
+
+            if (pending_writes >= config_.batch_size) {
+              if (!ring_.submitPendingSQEs()) {
+                reportError("eventLoop:submit", "Failed to submit batch. io_uring may be degraded.");
+              }
+              pending_writes = 0;
+            }
           }
 
           // Prevents too many requests from causing this loop to stall
@@ -187,6 +261,22 @@ Logger::Logger(const Config& config) :
           reportError("eventLoop:processing", e.what());
         } catch (...) {
           reportError("eventLoop:processing", "Unknown exception");
+        }
+      }
+
+      // Flush any remaining data in staging buffer
+      if (staging_offset > 0) {
+        try {
+          auto persistent_buffer = buffer_pool_.acquire(staging_offset);
+          std::memcpy(persistent_buffer->data, staging_buffer.get(), staging_offset);
+          persistent_buffer->size = staging_offset;
+          active_tasks.push_back(processCoalescedWriteWithBuffer(std::move(persistent_buffer)));
+          active_task_count_.fetch_add(1, std::memory_order_release);
+          pending_writes++;
+          staging_offset = 0;
+          messages_in_staging = 0;
+        } catch (const std::exception& e) {
+          reportError("eventLoop:flush_staging", e.what());
         }
       }
 
@@ -203,43 +293,39 @@ Logger::Logger(const Config& config) :
       ring_.processCompletions();
 
       // Clean up completed tasks and check for exceptions
-      active_tasks.erase(
-          std::remove_if(active_tasks.begin(), active_tasks.end(),
-              [this](const Coroutine::WriteTask& task) {
-                if (!task.done()) return false;
+      // Using std::list::remove_if for O(1) removal per element
+      active_tasks.remove_if(
+          [this](const Coroutine::WriteTask& task) {
+            if (!task.done()) return false;
 
-                // Check if task completed with exception
-                if (task.has_exception()) {
-                  try {
-                    task.rethrow_if_exception();
-                  } catch (const std::exception& e) {
-                    reportError("coroutine", e.what());
-                  } catch (...) {
-                    reportError("coroutine", "Unknown exception in completed task");
-                  }
-                }
+            // Check if task completed with exception
+            if (task.has_exception()) {
+              try {
+                task.rethrow_if_exception();
+              } catch (const std::exception& e) {
+                reportError("coroutine", e.what());
+              } catch (...) {
+                reportError("coroutine", "Unknown exception in completed task");
+              }
+            }
 
-                // Decrement active task count and notify flush if this was the last task
-                if (active_task_count_.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-                  // This was the last active task - notify any waiting flush
-                  flush_cv_.notify_one();
-                }
+            // Decrement active task count and notify flush if this was the last task
+            if (active_task_count_.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+              // This was the last active task - notify any waiting flush
+              flush_cv_.notify_one();
+            }
 
-                return true;
-              }),
-          active_tasks.end()
+            return true;
+          }
       );
 
       // Smart waiting strategy
       if (!st.stop_requested()) {
         if (queue_->empty() && !active_tasks.empty()) {
-          // We have outstanding I/O but no new work - wait for completions
-          ring_.waitForCompletion(std::chrono::microseconds(1000));
+          ring_.waitForCompletion(std::chrono::microseconds(100));
         } else if (queue_->empty() && active_tasks.empty()) {
-          // Truly idle - brief sleep
           std::this_thread::sleep_for(std::chrono::microseconds(10));
         }
-        // else: work available, don't sleep at all
       }
     }
   }
@@ -281,6 +367,34 @@ Logger::Logger(const Config& config) :
       reportError("processRequest", e.what());
     } catch (...) {
       reportError("processRequest", "Unknown exception");
+    }
+  }
+
+  Coroutine::WriteTask Logger::processCoalescedWriteWithBuffer(std::unique_ptr<Memory::Buffer> buffer) {
+    try {
+      // Check if file rotation is needed
+      if (file_rotater_.shouldRotate()) {
+        file_rotater_.rotate();
+        file_.reopen(file_rotater_.getCurrentFilename());
+      }
+
+      // Write the coalesced buffer (data is already formatted)
+      int bytes_written = co_await ring_.write(file_, buffer->data, buffer->size);
+
+      // THIS IS RESUMED AFTER THE KERNEL CONSUMES THE CQE
+      buffer_pool_.release(std::move(buffer));
+
+      if (bytes_written < 0) {
+        reportError("processCoalescedWrite:write", "io_uring write failed with error code: " + std::to_string(bytes_written));
+      } else {
+        // Update file rotater with bytes written
+        file_rotater_.updateCurrentSize(bytes_written);
+      }
+
+    } catch (const std::exception& e) {
+      reportError("processCoalescedWrite", e.what());
+    } catch (...) {
+      reportError("processCoalescedWrite", "Unknown exception");
     }
   }
 

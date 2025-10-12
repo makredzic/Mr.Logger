@@ -21,17 +21,16 @@ public:
     const WriteOnlyFile& file;
     void* buffer;
     size_t len;
-    int result = -1; 
-    
+    int result = -1;
+    std::coroutine_handle<> handle;  // Store handle directly in awaiter
+
     bool await_ready() { return false; }
     void await_suspend(std::coroutine_handle<> h) {
-      try {
-        auto* user_data = new UserData{h, this};
+      handle = h;  // Store handle for later resumption
 
-        // SUBMIT TO IO_URING
-        bool success = ring->prepareWrite(file, buffer, len, user_data);
+      try {
+        bool success = ring->prepareWrite(file, buffer, len, this);
         if (!success) {
-          delete user_data;
           result = -EAGAIN;
           h.resume();
         }
@@ -43,11 +42,6 @@ public:
     int await_resume() {
       return result;
     }
-  };
-
-  struct UserData {
-    std::coroutine_handle<> handle;
-    WriteAwaiter* awaiter;  // Back-pointer to get the result
   };
 
 
@@ -73,7 +67,7 @@ public:
   inline void markFailed() noexcept { is_operational_.store(false, std::memory_order_release); }
 
   inline WriteAwaiter write(const WriteOnlyFile& file, void* buffer, size_t len) {
-    return WriteAwaiter{this, file, buffer, len, -1};
+    return WriteAwaiter{this, file, buffer, len, -1, {}};
   }
 
   inline void processCompletions() noexcept {
@@ -84,13 +78,14 @@ public:
 
       io_uring_for_each_cqe(&ring_, head, cqe) {
 
-          auto* user_data = static_cast<UserData*>(io_uring_cqe_get_data(cqe));
+          auto* awaiter = static_cast<WriteAwaiter*>(io_uring_cqe_get_data(cqe));
 
-          if (user_data) {
+          if (awaiter) {
               // Store the I/O result in the awaiter
-              user_data->awaiter->result = cqe->res;
-              user_data->handle.resume();
-              delete user_data;  // Clean up UserData
+              awaiter->result = cqe->res;
+              // Resume the coroutine
+              awaiter->handle.resume();
+              // No delete needed - awaiter is part of the coroutine frame
           }
           completed++;
       }

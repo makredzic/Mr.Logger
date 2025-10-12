@@ -79,6 +79,7 @@ namespace MR::Logger {
         .large_buffer_size = 16384u,
         .shutdown_timeout_seconds = 3u,
         ._queue = std::make_shared<Queue::StdQueue<WriteRequest>>(),
+        .coalesce_size = 32u,
       };
 
 
@@ -105,6 +106,7 @@ namespace MR::Logger {
       void eventLoop(std::stop_token);
       size_t formatTo(WriteRequest&& msg, char* buffer, size_t capacity);
       Coroutine::WriteTask processRequest(WriteRequest&&);
+      Coroutine::WriteTask processCoalescedWriteWithBuffer(std::unique_ptr<Memory::Buffer> buffer);
       void reportError(const char* location, const std::string& what) const noexcept;
 
       template<typename T>
