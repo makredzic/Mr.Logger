@@ -92,6 +92,11 @@ namespace MR::Logger {
 
       std::jthread worker_;
 
+      // Flush synchronization
+      std::mutex flush_mutex_;
+      std::condition_variable flush_cv_;
+      std::atomic<size_t> active_task_count_{0};
+
       // Private constructor only for the Factory class
       Logger(const Config& = default_config_);
       friend class Factory;
@@ -170,6 +175,9 @@ namespace MR::Logger {
 
       inline static const Config& defaultConfig() { return default_config_; }
       inline uint16_t getMaxLogsPerIteration() const { return max_logs_per_iteration_; }
+
+      // Flush all currently queued log messages to disk
+      void flush();
 
     private:
       // Factory class for singleton access

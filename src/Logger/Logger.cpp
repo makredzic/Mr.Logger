@@ -167,6 +167,7 @@ Logger::Logger(const Config& config) :
 
         try {
           active_tasks.push_back(processRequest(std::move(request.value())));
+          active_task_count_.fetch_add(1, std::memory_order_release);
 
           pending_writes++;
           processed_this_iteration++;
@@ -217,15 +218,28 @@ Logger::Logger(const Config& config) :
                     reportError("coroutine", "Unknown exception in completed task");
                   }
                 }
+
+                // Decrement active task count and notify flush if this was the last task
+                if (active_task_count_.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+                  // This was the last active task - notify any waiting flush
+                  flush_cv_.notify_one();
+                }
+
                 return true;
               }),
           active_tasks.end()
       );
 
-      // Only sleep if we're still running normally
-      // During shutdown, process as fast as possible
+      // Smart waiting strategy
       if (!st.stop_requested()) {
-        std::this_thread::sleep_for(std::chrono::microseconds(100));
+        if (queue_->empty() && !active_tasks.empty()) {
+          // We have outstanding I/O but no new work - wait for completions
+          ring_.waitForCompletion(std::chrono::microseconds(1000));
+        } else if (queue_->empty() && active_tasks.empty()) {
+          // Truly idle - brief sleep
+          std::this_thread::sleep_for(std::chrono::microseconds(10));
+        }
+        // else: work available, don't sleep at all
       }
     }
   }
@@ -364,6 +378,15 @@ Logger::Logger(const Config& config) :
       const char* critical = "[MR::Logger CRITICAL] Error handler threw\n";
       ::write(STDERR_FILENO, critical, strlen(critical));
     }
+  }
+
+  void Logger::flush() {
+    std::unique_lock<std::mutex> lock(flush_mutex_);
+
+    // Wait until queue is empty AND all active tasks are done
+    flush_cv_.wait(lock, [this]() {
+      return queue_->size() == 0 && active_task_count_.load(std::memory_order_acquire) == 0;
+    });
   }
 
   // Namespace-level convenience functions

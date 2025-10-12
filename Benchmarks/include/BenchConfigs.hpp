@@ -83,6 +83,26 @@ public:
         return config;
     }
     
+    static BenchmarkConfig get_no_batch_config(size_t thread_count = 1) {
+        auto config = BenchmarkConfig(BenchmarkType::MRLogger, "NoBatch", thread_count);
+        std::string thread_suffix = thread_count > 1 ? "_MultiThread" : "_SingleThread";
+        config.logger_config = MR::Logger::Config{
+            .log_file_name = "Bench_NoBatch" + thread_suffix + ".log",
+            .max_log_size_bytes = 200 * 1024 * 1024, // 200MB - prevent rotation during benchmark
+            .batch_size = 1u,  // Submit each log immediately to io_uring
+            .queue_depth = 512u,
+            .small_buffer_pool_size = 512u,
+            .medium_buffer_pool_size = 256u,
+            .large_buffer_pool_size = 128u,
+            .small_buffer_size = 1024u,
+            .medium_buffer_size = 4096u,
+            .large_buffer_size = 16384u,
+            .shutdown_timeout_seconds = 60u,
+            ._queue = std::make_shared<MR::Queue::StdQueue<MR::Logger::WriteRequest>>(),
+        };
+        return config;
+    }
+
     static BenchmarkConfig get_spdlog_config(size_t thread_count = 1) {
         auto config = BenchmarkConfig(BenchmarkType::Spdlog, "Spdlog", thread_count);
         std::string thread_suffix = thread_count > 1 ? "_MultiThread" : "_SingleThread";

@@ -9,8 +9,9 @@ benchmark_core_sources = files(
 # List of benchmark executables to build with new naming convention
 benchmark_config = [
     ['BenchmarkDefault.cpp', 'Bench_Default_SingleThread'],
-    ['BenchmarkSmall.cpp', 'Bench_Small_SingleThread'], 
+    ['BenchmarkSmall.cpp', 'Bench_Small_SingleThread'],
     ['BenchmarkLarge.cpp', 'Bench_Large_SingleThread'],
+    ['BenchmarkNoBatch.cpp', 'Bench_NoBatch_SingleThread'],
     ['BenchmarkSpdlog.cpp', 'Bench_Spdlog_SingleThread'],
     ['BenchmarkDefaultMultiThreaded.cpp', 'Bench_Default_MultiThread'],
     ['BenchmarkSpdlogMultiThreaded.cpp', 'Bench_Spdlog_MultiThread'],
@@ -68,7 +69,8 @@ run_target('benchmarks',
     benchmark_exes[2].full_path() + ' && ' + 
     benchmark_exes[3].full_path() + ' && ' +
     benchmark_exes[4].full_path() + ' && ' +
-    benchmark_exes[5].full_path()
+    benchmark_exes[5].full_path() + ' && ' +
+    benchmark_exes[6].full_path()
   ],
   depends: benchmark_exes
 )

@@ -25,6 +25,7 @@ void deleteIfExists(const std::string& filename) {
     }
 }
 
+// Only used for spdlog benchmarks - MRLogger uses flush() instead
 void waitForLineCount(const std::string& filepath, size_t expected_lines, std::chrono::seconds timeout) {
     auto start = high_resolution_clock::now();
     auto timeout_point = start + timeout;
@@ -188,7 +189,6 @@ BenchmarkResult run_mrlogger_benchmark(const BenchmarkConfig& config) {
     deleteIfExists(config.logger_config.log_file_name);
 
     const size_t msgs_per_thread = config.total_messages / config.thread_count;
-    const std::chrono::seconds timeout(config.logger_config.shutdown_timeout_seconds + 30);
 
     MR::Logger::init(config.logger_config);
     auto logger = MR::Logger::Logger::get();
@@ -202,10 +202,8 @@ BenchmarkResult run_mrlogger_benchmark(const BenchmarkConfig& config) {
         queue_time = measureMultiThreaded(logger, msgs_per_thread, config.thread_count);
     }
 
-    // Don't explicitly destroy the logger - let it persist as a singleton
-    // The logger will continue processing in the background
-    // We just wait for all log lines to appear in the file
-    waitForLineCount(config.logger_config.log_file_name, config.total_messages, timeout);
+    // Flush to ensure all log messages are written to disk
+    logger->flush();
     auto measurement_end = high_resolution_clock::now();
 
     DurationPair durations{
@@ -257,8 +255,6 @@ BenchmarkResult run_spdlog_benchmark(const BenchmarkConfig& config) {
         auto logger = spdlog::basic_logger_st("benchmark_logger", config.spdlog_file_name);
         logger->set_level(spdlog::level::info);
 
-        // logger->flush_on(spdlog::level::info);
-
         queue_time = measureSpdLoggerSingleThreaded(logger, msgs_per_thread);
 
         // Flush to ensure all logs are written
@@ -270,7 +266,6 @@ BenchmarkResult run_spdlog_benchmark(const BenchmarkConfig& config) {
 
         auto logger = spdlog::basic_logger_mt("benchmark_logger_mt", config.spdlog_file_name);
         logger->set_level(spdlog::level::info);
-        // logger->flush_on(spdlog::level::info);
 
         queue_time = measureSpdLoggerMultiThreaded(logger, msgs_per_thread, config.thread_count);
 

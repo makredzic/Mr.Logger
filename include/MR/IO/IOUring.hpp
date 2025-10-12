@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <coroutine>
 #include <atomic>
+#include <chrono>
 
 #include <MR/IO/WriteOnlyFile.hpp>
 
@@ -101,6 +102,26 @@ public:
       // Critical: if CQE processing fails, mark as failed
       markFailed();
     }
+  }
+
+  // Wait for at least one CQE with timeout
+  inline bool waitForCompletion(std::chrono::microseconds timeout) noexcept {
+    if (!is_operational_.load(std::memory_order_acquire)) {
+      return false;
+    }
+
+    __kernel_timespec ts;
+    ts.tv_sec = timeout.count() / 1000000;
+    ts.tv_nsec = (timeout.count() % 1000000) * 1000;
+
+    io_uring_cqe* cqe;
+    int ret = io_uring_wait_cqe_timeout(&ring_, &cqe, &ts);
+
+    if (ret == 0) {
+      // Don't advance here - let processCompletions() handle it
+      return true;
+    }
+    return false; // timeout or error
   }
 
   inline bool submitPendingSQEs() noexcept {

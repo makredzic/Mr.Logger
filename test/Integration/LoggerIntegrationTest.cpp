@@ -277,6 +277,88 @@ TEST_F(LoggerIntegrationTest, EarlyLoggerClosureMultiThreaded) {
     }
 }
 
+TEST_F(LoggerIntegrationTest, FlushBasic) {
+    auto logger = Logger::get();
+
+    for (int i = 0; i < 100; ++i) {
+        logger->info("Message {}", i);
+    }
+
+    logger->flush();
+
+    auto lines = readLogFile();
+    ASSERT_EQ(lines.size(), 100);
+
+    for (int i = 0; i < 100; ++i) {
+        EXPECT_THAT(lines[i], testing::HasSubstr("Message " + std::to_string(i)));
+    }
+}
+
+TEST_F(LoggerIntegrationTest, FlushEmpty) {
+    auto logger = Logger::get();
+
+    // Flush on empty queue should return immediately
+    auto start = std::chrono::high_resolution_clock::now();
+    logger->flush();
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+
+    // Should complete very quickly (< 10ms)
+    EXPECT_LT(duration.count(), 10);
+}
+
+TEST_F(LoggerIntegrationTest, FlushWithNewMessages) {
+    auto logger = Logger::get();
+
+    // Write initial batch
+    for (int i = 0; i < 50; ++i) {
+        logger->info("Batch1-Message{}", i);
+    }
+
+    // Flush first batch
+    logger->flush();
+
+    auto lines = readLogFile();
+    ASSERT_EQ(lines.size(), 50);
+
+    // Write second batch
+    for (int i = 0; i < 50; ++i) {
+        logger->info("Batch2-Message{}", i);
+    }
+
+    // Flush second batch
+    logger->flush();
+
+    lines = readLogFile();
+    ASSERT_EQ(lines.size(), 100);
+}
+
+TEST_F(LoggerIntegrationTest, FlushMultiThreaded) {
+    auto logger = Logger::get();
+
+    const int num_threads = 4;
+    const int messages_per_thread = 100;
+
+    std::vector<std::thread> threads;
+
+    for (int tid = 0; tid < num_threads; ++tid) {
+        threads.emplace_back([&, tid]() {
+            for (int i = 0; i < messages_per_thread; ++i) {
+                logger->info("Thread{}-Message{}", tid, i);
+            }
+        });
+    }
+
+    for (auto& t : threads) {
+        t.join();
+    }
+
+    logger->flush();
+
+    auto lines = readLogFile();
+    ASSERT_EQ(lines.size(), num_threads * messages_per_thread);
+}
+
 #ifdef LOGGER_TEST_SEQUENCE_TRACKING
 TEST_F(LoggerIntegrationTest, SequenceNumberOrderingWithoutSync) {
     auto logger = Logger::get();
