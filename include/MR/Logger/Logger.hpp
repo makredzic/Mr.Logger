@@ -191,12 +191,14 @@ namespace MR::Logger {
         static std::shared_ptr<Logger> _get();
         static void init(Config&& config);
         static void _reset();
+        static const Config& getConfig();
       };
 
     public:
       static void init(Config&& config = {});
       static void init(const Config& config);
       static std::shared_ptr<Logger> get() { return Factory::_get(); }
+      static const Config& getConfig() { return Factory::getConfig(); }
 
       /*
         Should never be called. Destroys the shared_ptr instance but does not guarantee logger shutdown due to ref counting.
@@ -209,4 +211,5 @@ namespace MR::Logger {
   void init(Config&& config = {});
   void init(const Config& config);
   std::shared_ptr<Logger> get();
+  const Config& getConfig();
 }

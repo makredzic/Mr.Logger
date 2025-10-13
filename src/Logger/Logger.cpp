@@ -24,7 +24,7 @@
 namespace MR::Logger {
 
 Config Logger::mergeWithDefault(const Config& user_config) {
-  return Config{
+  auto merged = Config{
   .internal_error_handler = user_config.internal_error_handler == nullptr
     ? default_config_.internal_error_handler
     : user_config.internal_error_handler,
@@ -81,6 +81,17 @@ Config Logger::mergeWithDefault(const Config& user_config) {
     ? default_config_.coalesce_size
     : user_config.coalesce_size
   };
+
+  bool user_specified_batch_size = user_config.batch_size != 0;
+  bool user_specified_queue_depth = user_config.queue_depth != 0;
+  bool user_specified_coalesce_size = user_config.coalesce_size != 0;
+
+  if (user_specified_batch_size) {
+    if (!user_specified_queue_depth) merged.queue_depth = merged.batch_size * 16;
+    if (!user_specified_coalesce_size) merged.coalesce_size = merged.batch_size;
+  }
+
+  return merged;
 }
 
 Logger::Logger(const Config& config) :
@@ -110,16 +121,35 @@ Logger::Logger(const Config& config) :
     }
   } {
 
+    // Validation: batch_size must not exceed queue_depth
     if (config_.batch_size > config_.queue_depth) {
       throw std::invalid_argument{"batch_size cannot exceed queue_depth"};
     }
 
-    // Warn about suboptimal configurations
+    // Warn about suboptimal configurationsq
     if (config_.batch_size > config_.queue_depth / 2) {
       reportError("constructor",
         "Warning: batch_size (" + std::to_string(config_.batch_size) +
         ") is more than half of queue_depth (" + std::to_string(config_.queue_depth) +
         "). This may result in inefficient CQE processing. Consider reducing batch_size or increasing queue_depth.");
+    }
+
+    // Validate queue_depth relative to batch_size
+    if (config_.queue_depth < config_.batch_size * 8) {
+      reportError("constructor",
+        "Warning: queue_depth (" + std::to_string(config_.queue_depth) +
+        ") is less than 8x batch_size (" + std::to_string(config_.batch_size * 8) +
+        "). This may limit I/O pipeline depth. Consider increasing queue_depth to at least " +
+        std::to_string(config_.batch_size * 16) + " for optimal performance.");
+    }
+
+    // Validate coalesce_size relative to batch_size
+    double coalesce_ratio = static_cast<double>(config_.coalesce_size) / config_.batch_size;
+    if (config_.coalesce_size > 0 && (coalesce_ratio < 0.5 || coalesce_ratio > 2.0)) {
+      reportError("constructor",
+        "Warning: coalesce_size (" + std::to_string(config_.coalesce_size) +
+        ") differs significantly from batch_size (" + std::to_string(config_.batch_size) +
+        "). Optimal ratio is close to 1:1. Current ratio: " + std::to_string(coalesce_ratio));
     }
 
     // Ensure calculated max_logs_per_iteration allows at least 2 batches
@@ -153,7 +183,6 @@ Logger::Logger(const Config& config) :
 
     while(!st.stop_requested() || !queue_->empty() || !active_tasks.empty()) {
 
-      // Check if io_uring has failed - if so, drain queue and exit
       if (!ring_.isOperational()) {
         reportError("eventLoop", "io_uring marked as failed. Draining queue and shutting down.");
 
@@ -167,7 +196,7 @@ Logger::Logger(const Config& config) :
           reportError("eventLoop", "Dropped " + std::to_string(dropped) + " log messages due to io_uring failure.");
         }
 
-        break;  // Exit event loop
+        break; 
       }
 
       size_t processed_this_iteration = 0;
@@ -232,7 +261,7 @@ Logger::Logger(const Config& config) :
         pending_writes = 0;
       }
 
-      // Process CQEs (maybe dispatch to thread pool)
+      // Process CQEs
       ring_.processCompletions();
 
       // Clean up completed tasks and check for exceptions
@@ -252,9 +281,7 @@ Logger::Logger(const Config& config) :
               }
             }
 
-            // Decrement active task count and notify flush if this was the last task
             if (active_task_count_.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-              // This was the last active task - notify any waiting flush
               flush_cv_.notify_one();
             }
 
@@ -343,6 +370,16 @@ Logger::Logger(const Config& config) :
     instance_.reset();
   }
 
+  const Config& Logger::Factory::getConfig() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!instance_) {
+      // Return empty config if not initialized
+      static const Config empty_config{};
+      return empty_config;
+    }
+    return instance_->config_;
+  }
+
   void Logger::init(Config&& config) {
     Factory::init(std::move(config));
   }
@@ -383,5 +420,9 @@ Logger::Logger(const Config& config) :
 
   std::shared_ptr<Logger> get() {
     return Logger::get();
+  }
+
+  const Config& getConfig() {
+    return Logger::getConfig();
   }
 };

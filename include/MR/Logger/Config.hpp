@@ -28,15 +28,22 @@ namespace MR::Logger {
     // when this size is reached. 
     size_t max_log_size_bytes;
 
-    // number of log messages that are submitted
-    // in batches to io_uring
-    // (must be <= queue_depth)
+    // Number of log messages to batch before calling io_uring_submit()
+    // This is the primary tuning parameter - other batching parameters are auto-calculated from this.
+    //
+    // Auto-scaling behavior (when only batch_size is specified):
+    //   - queue_depth = 16 × batch_size (provides good I/O pipeline depth)
+    //   - coalesce_size = batch_size (matches batching for optimal message packing)
+    //
+    // Typical values: 16-64 (balanced), 32 (default), 128+ (high throughput)
+    // Must be <= queue_depth
     uint16_t batch_size;
 
-    // io_uring queue depth
-    // Controls the maximum number of simultaneous I/O operations.
-    // The actual max_logs_per_iteration is calculated based on this value
-    // and batch_size to optimize the submit/complete cycle.
+    // io_uring queue depth - maximum number of simultaneous I/O operations
+    //
+    // Auto-calculated as 16 × batch_size if not specified by user.
+    // Recommended: 8-16x batch_size for optimal pipeline depth
+    // Must be >= batch_size
     uint16_t queue_depth;
 
     // Buffer pool configuration
@@ -58,8 +65,13 @@ namespace MR::Logger {
     // 3) ???
     std::shared_ptr<Interface::ThreadSafeQueue<WriteRequest>> _queue;
 
-    // Number of log messages to coalesce into a single io_uring write operation
-    // Higher values = fewer io_uring operations, better throughput
+    // Number of log messages to coalesce into a single buffer/write operation
+    // This controls message-level packing before submission to io_uring.
+    //
+    // Auto-calculated as batch_size if not specified by user.
+    // Recommended: match or be close to batch_size for optimal performance
+    //
+    // Higher values = fewer write operations, better throughput
     // Lower values = lower latency per message
     // 0 = disable coalescing (format and write each message individually)
     uint16_t coalesce_size;

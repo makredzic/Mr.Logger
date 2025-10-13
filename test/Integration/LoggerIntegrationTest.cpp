@@ -422,4 +422,193 @@ TEST_F(LoggerIntegrationTest, SequenceNumberOrderingWithoutSync) {
 }
 #endif
 
+TEST_F(LoggerIntegrationTest, SingleMessageFlush) {
+    // Test that a single message gets written despite batch_size=64
+    auto logger = Logger::get();
+
+    logger->info("Single message test");
+
+    // Wait for message to be processed and written
+    waitForLogCompletion(1);
+
+    auto lines = readLogFile();
+    ASSERT_EQ(lines.size(), 1);
+    EXPECT_THAT(lines[0], testing::HasSubstr("Single message test"));
+    EXPECT_THAT(lines[0], testing::HasSubstr("[INFO]"));
+}
+
+TEST_F(LoggerIntegrationTest, FewerThanBatchSize) {
+    // Test that 5 messages get written despite batch_size=64
+    auto logger = Logger::get();
+
+    for (int i = 1; i <= 5; ++i) {
+        logger->info("Message {}", i);
+    }
+
+    // Wait for all messages to be processed
+    waitForLogCompletion(5);
+
+    auto lines = readLogFile();
+    ASSERT_EQ(lines.size(), 5);
+
+    for (int i = 0; i < 5; ++i) {
+        EXPECT_THAT(lines[i], testing::HasSubstr("Message " + std::to_string(i + 1)));
+    }
+}
+
+TEST_F(LoggerIntegrationTest, ExactlyBatchSizeMinusOne) {
+    // Test that batch_size-1 messages get written (edge case)
+    auto logger = Logger::get();
+
+    const int message_count = config_.batch_size - 1;  // 63 messages (batch=64)
+
+    for (int i = 1; i <= message_count; ++i) {
+        logger->info("Message {}", i);
+    }
+
+    // Wait for all messages to be processed
+    waitForLogCompletion(message_count);
+
+    auto lines = readLogFile();
+    ASSERT_EQ(lines.size(), message_count);
+}
+
+TEST_F(LoggerIntegrationTest, SmallBatchWithCoalescing) {
+    // Verify small batches work with coalescing enabled
+    // The default logger config from SetUp has coalesce_size=0 (disabled)
+    // So we need to create a logger with coalescing enabled
+    Logger::_reset();
+
+    // Use a different log file to avoid conflicts
+    auto coalesce_log_file = std::filesystem::temp_directory_path() / "logger_coalesce_test.log";
+    if (std::filesystem::exists(coalesce_log_file)) {
+        std::filesystem::remove(coalesce_log_file);
+    }
+
+    Config custom_config = {
+        .log_file_name = coalesce_log_file.string(),
+        .max_log_size_bytes = 100 * 1024 * 1024,
+        .batch_size = 32,
+        .queue_depth = 512,
+        .small_buffer_pool_size = 0,
+        .medium_buffer_pool_size = 0,
+        .large_buffer_pool_size = 0,
+        .small_buffer_size = 0,
+        .medium_buffer_size = 0,
+        .large_buffer_size = 0,
+        .shutdown_timeout_seconds = 3,
+        ._queue = std::make_shared<Queue::StdQueue<WriteRequest>>(),
+        .coalesce_size = 32  // Enable coalescing
+    };
+
+    Logger::init(custom_config);
+
+    auto logger = Logger::get();
+
+    // Log only 3 messages (much less than coalesce_size=32)
+    logger->info("Coalesced message 1");
+    logger->info("Coalesced message 2");
+    logger->info("Coalesced message 3");
+
+    // Explicitly flush to ensure all messages are written
+    logger->flush();
+
+    // Read from the coalesce-specific log file
+    std::ifstream file(coalesce_log_file);
+    std::vector<std::string> lines;
+    std::string line;
+    while (std::getline(file, line)) {
+        lines.push_back(line);
+    }
+    file.close();
+
+    ASSERT_EQ(lines.size(), 3);
+
+    EXPECT_THAT(lines[0], testing::HasSubstr("Coalesced message 1"));
+    EXPECT_THAT(lines[1], testing::HasSubstr("Coalesced message 2"));
+    EXPECT_THAT(lines[2], testing::HasSubstr("Coalesced message 3"));
+
+    // Clean up
+    if (std::filesystem::exists(coalesce_log_file)) {
+        std::filesystem::remove(coalesce_log_file);
+    }
+}
+
+TEST_F(LoggerIntegrationTest, SmallBatchMultiThreaded) {
+    // Test that small batches from multiple threads are all written
+    auto logger = Logger::get();
+
+    std::thread t1([&logger]() {
+        logger->info("Thread1-Message1");
+        logger->info("Thread1-Message2");
+    });
+
+    std::thread t2([&logger]() {
+        logger->info("Thread2-Message1");
+        logger->info("Thread2-Message2");
+    });
+
+    t1.join();
+    t2.join();
+
+    // Total: 4 messages (much less than batch_size=64)
+    waitForLogCompletion(4);
+
+    auto lines = readLogFile();
+    ASSERT_EQ(lines.size(), 4);
+
+    // Verify all messages are present (order may vary due to threading)
+    EXPECT_THAT(lines, testing::Contains(testing::HasSubstr("Thread1-Message1")));
+    EXPECT_THAT(lines, testing::Contains(testing::HasSubstr("Thread1-Message2")));
+    EXPECT_THAT(lines, testing::Contains(testing::HasSubstr("Thread2-Message1")));
+    EXPECT_THAT(lines, testing::Contains(testing::HasSubstr("Thread2-Message2")));
+}
+
+TEST_F(LoggerIntegrationTest, ZeroMessagesNoHang) {
+    // Test that logger can be destroyed without logging any messages
+    // This should complete quickly without hanging
+    auto logger = Logger::get();
+
+    auto start = std::chrono::high_resolution_clock::now();
+
+    // Immediately reset logger without logging anything
+    Logger::_reset();
+
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+
+    // Should complete very quickly (< 100ms)
+    EXPECT_LT(duration.count(), 100);
+}
+
+TEST_F(LoggerIntegrationTest, IncrementalSmallBatches) {
+    // Test multiple small batches with delays between them
+    auto logger = Logger::get();
+
+    // First small batch
+    logger->info("Batch1-Message1");
+    logger->info("Batch1-Message2");
+
+    waitForLogCompletion(2);
+    auto lines = readLogFile();
+    ASSERT_EQ(lines.size(), 2);
+
+    // Second small batch after some time
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    logger->info("Batch2-Message1");
+    logger->info("Batch2-Message2");
+    logger->info("Batch2-Message3");
+
+    waitForLogCompletion(5);
+    lines = readLogFile();
+    ASSERT_EQ(lines.size(), 5);
+
+    EXPECT_THAT(lines[0], testing::HasSubstr("Batch1-Message1"));
+    EXPECT_THAT(lines[1], testing::HasSubstr("Batch1-Message2"));
+    EXPECT_THAT(lines[2], testing::HasSubstr("Batch2-Message1"));
+    EXPECT_THAT(lines[3], testing::HasSubstr("Batch2-Message2"));
+    EXPECT_THAT(lines[4], testing::HasSubstr("Batch2-Message3"));
+}
+
 }

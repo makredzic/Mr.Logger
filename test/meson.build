@@ -11,7 +11,8 @@ gmock_dep = dependency('gmock', static: true)
 test_filenames = [
   'Integration/LoggerIntegrationTest.cpp',
   'Unit/FileRotaterTest.cpp',
-  'Unit/BufferPoolTest.cpp'
+  'Unit/BufferPoolTest.cpp',
+  'Unit/LoggerConfigTest.cpp'
 ]
 
 # Build and test each one
