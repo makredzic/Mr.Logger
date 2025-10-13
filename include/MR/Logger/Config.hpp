@@ -65,8 +65,9 @@ namespace MR::Logger {
     // 3) ???
     std::shared_ptr<Interface::ThreadSafeQueue<WriteRequest>> _queue;
 
-    // Number of log messages to coalesce into a single buffer/write operation
+    // Target maximum number of log messages to coalesce into a single buffer/write operation
     // This controls message-level packing before submission to io_uring.
+    // Actual count may be lower if: staging buffer fills (16KB limit), queue drains, or message overflow
     //
     // Auto-calculated as batch_size if not specified by user.
     // Recommended: match or be close to batch_size for optimal performance

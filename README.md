@@ -41,23 +41,85 @@ The logger uses a thread-safe design with configurable thread-safe queue impleme
 ## Usage
 
 ### Configuration System
-The Logger behavior is controlled through the `Config` struct in `include/MR/Logger/Config.hpp`. Each option can be overriden manually when initializing the Logger singleton. All options that are unspecified will inherit the default config's values.
+
+The Logger behavior is controlled through the `Config` struct in `include/MR/Logger/Config.hpp`. Configuration follows a flexible inheritance model where:
+- Unspecified options inherit from the default configuration
+- Specified options override defaults
+- Related parameters auto-scale intelligently when partially configured
+
+#### Basic Usage
 
 ```cpp
 #include <MR/Logger/Logger.hpp>
 
-// Initiliaze the logger with the default config
-MR::Logger::init(); 
+// Initialize with default config
+MR::Logger::init();
 
-// Initialize with a different output file name
-// all other options are inherited from the default config
+// Initialize with custom file name (other options use defaults)
 MR::Logger::init({.log_file_name="abc.log"});
 
-// Get the logger singleton. Can be used anywhere in the codebase
-// as long as the logger `init()` function was called once beforehand
+// Get the logger singleton (call anywhere after init)
 auto log = MR::Logger::get();
 log->info("Hello, World!");
 ```
+
+#### Batching Parameters & Auto-Scaling
+
+The logger has three key batching parameters that work together:
+- **`batch_size`**: Number of writes to batch before calling `io_uring_submit()` (default: 32)
+- **`queue_depth`**: io_uring queue depth for simultaneous I/O operations (default: 512)
+- **`coalesce_size`**: Target maximum messages per buffer (default: 32)
+
+**Note**: `coalesce_size` is a target maximum. Buffers may contain fewer messages if:
+- The staging buffer (16KB) reaches 90% capacity with large messages
+- The queue is drained before reaching the target
+- A message is too large to fit in the remaining buffer space
+
+**Auto-Scaling Behavior**: When you specify only `batch_size`, the other parameters automatically calculate optimal values:
+- `queue_depth` = 16 × `batch_size` (provides good I/O pipeline depth)
+- `coalesce_size` = `batch_size` (matches batching for optimal message packing)
+
+```cpp
+// Simple: specify only batch_size, others auto-scale
+MR::Logger::init({.batch_size = 64});
+// Result: batch_size=64, queue_depth=1024, coalesce_size=64
+
+// Advanced: manually override all parameters
+MR::Logger::init({
+    .batch_size = 32,
+    .queue_depth = 512,
+    .coalesce_size = 32
+});
+```
+
+**Performance Guidelines**:
+- **Low latency**: `batch_size = 16-32` (faster individual message processing)
+- **Balanced** (default): `batch_size = 32` (good throughput with low latency)
+- **High throughput**: `batch_size = 64-128` (maximum batching efficiency)
+
+#### Inspecting Configuration
+
+You can retrieve the final merged configuration at runtime:
+
+```cpp
+MR::Logger::init({.batch_size = 48});
+
+auto config = MR::Logger::getConfig();
+// config.batch_size = 48
+// config.queue_depth = 768 (auto-scaled: 48 * 16)
+// config.coalesce_size = 48 (auto-scaled to match batch_size)
+```
+
+#### Default Configuration Values
+
+| Parameter | Default Value | Description |
+|-----------|---------------|-------------|
+| `log_file_name` | `"output.log"` | Output log file path |
+| `max_log_size_bytes` | `5 MB` | File rotation threshold |
+| `batch_size` | `32` | Write batching size |
+| `queue_depth` | `512` | io_uring queue depth |
+| `coalesce_size` | `32` | Message coalescing size |
+| `shutdown_timeout_seconds` | `3` | Worker shutdown timeout |
 
 ### Thread Safe Queue
 All log requests (see `include/MR/Logger/WriteRequest.hpp`) are pushed into a 
