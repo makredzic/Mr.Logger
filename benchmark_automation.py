@@ -180,14 +180,15 @@ def parse_benchmark_results():
 def calculate_statistics(benchmark_data: Dict[str, List[Dict[str, Any]]]):
     """Calculate statistical summaries for each benchmark."""
     stats = {}
-    
+
     for benchmark_name, runs in benchmark_data.items():
         if not runs:
             continue
-        
-        durations_ms = [run['duration_ms'] for run in runs]
-        messages_per_sec = [run['messages_per_second'] for run in runs]
-        
+
+        durations_ms = [run['end_to_end_time_ms'] for run in runs]
+        messages_per_sec = [run['end_to_end_messages_per_second'] for run in runs]
+        queue_times_ms = [run['queue_time_ms'] for run in runs]
+
         stats[benchmark_name] = {
             'duration_ms': {
                 'min': min(durations_ms),
@@ -201,9 +202,15 @@ def calculate_statistics(benchmark_data: Dict[str, List[Dict[str, Any]]]):
                 'avg': sum(messages_per_sec) / len(messages_per_sec),
                 'median': np.median(messages_per_sec)
             },
+            'queue_time_ms': {
+                'min': min(queue_times_ms),
+                'max': max(queue_times_ms),
+                'avg': sum(queue_times_ms) / len(queue_times_ms),
+                'median': np.median(queue_times_ms)
+            },
             'run_count': len(runs)
         }
-    
+
     return stats
 
 def separate_benchmarks_by_threading(stats: Dict[str, Dict[str, Dict[str, float]]]):
@@ -220,35 +227,40 @@ def separate_benchmarks_by_threading(stats: Dict[str, Dict[str, Dict[str, float]
     return single_threaded, multi_threaded
 
 def create_benchmark_plot(stats: Dict[str, Dict[str, Dict[str, float]]], plot_type: str, thread_type: str, plots_dir: str):
-    """Create a single benchmark plot for either duration or performance."""
+    """Create a single benchmark plot for either duration, performance, or queue time."""
     if not stats:
         print(f"No {thread_type} benchmarks found, skipping {plot_type} plot")
         return
-    
+
     benchmark_names = list(stats.keys())
     metrics = ['min', 'max', 'avg', 'median']
     x_pos = np.arange(len(benchmark_names))
     width = 0.2
-    
+
     plt.figure(figsize=(14, 8))
-    
+
     # Set up plot based on type
     if plot_type == 'duration':
         metric_key = 'duration_ms'
         ylabel = 'Duration (ms)'
         title = f'{thread_type} Benchmark Duration Statistics (Less is Better)'
         better_text = 'Less is Better'
+    elif plot_type == 'queue_time':
+        metric_key = 'queue_time_ms'
+        ylabel = 'Queue Time (ms)'
+        title = f'{thread_type} Benchmark Queue Time Statistics (Less is Better)'
+        better_text = 'Less is Better'
     else:  # performance
         metric_key = 'messages_per_second'
         ylabel = 'Messages per Second'
         title = f'{thread_type} Benchmark Performance Statistics (More is Better)'
         better_text = 'More is Better'
-    
+
     # Create bars
     for i, metric in enumerate(metrics):
         values = [stats[name][metric_key][metric] for name in benchmark_names]
         plt.bar(x_pos + i * width, values, width, label=f'{metric.capitalize()}', alpha=0.8)
-    
+
     plt.xlabel('Benchmark Type')
     plt.ylabel(ylabel)
     plt.title(title)
@@ -256,12 +268,12 @@ def create_benchmark_plot(stats: Dict[str, Dict[str, Dict[str, float]]], plot_ty
     plt.legend()
     plt.tight_layout()
     plt.grid(True, alpha=0.3)
-    
+
     # Add "better" text in corner
-    plt.text(0.98, 0.02, better_text, transform=plt.gca().transAxes, 
+    plt.text(0.98, 0.02, better_text, transform=plt.gca().transAxes,
              fontsize=12, fontweight='bold', ha='right', va='bottom',
              bbox=dict(boxstyle='round,pad=0.3', facecolor='yellow', alpha=0.7))
-    
+
     # Save plot
     filename = f'{plot_type}_{thread_type.lower().replace("-", "_")}.png'
     plot_path = os.path.join(plots_dir, filename)
@@ -274,16 +286,18 @@ def create_plots(stats: Dict[str, Dict[str, Dict[str, float]]]):
     # Create plots directory
     plots_dir = "build/BenchmarkPlots"
     os.makedirs(plots_dir, exist_ok=True)
-    
+
     # Separate benchmarks by threading model
     single_threaded, multi_threaded = separate_benchmarks_by_threading(stats)
-    
+
     # Create single-threaded plots
     create_benchmark_plot(single_threaded, 'duration', 'Single-Threaded', plots_dir)
+    create_benchmark_plot(single_threaded, 'queue_time', 'Single-Threaded', plots_dir)
     create_benchmark_plot(single_threaded, 'performance', 'Single-Threaded', plots_dir)
-    
+
     # Create multi-threaded plots
     create_benchmark_plot(multi_threaded, 'duration', 'Multi-Threaded', plots_dir)
+    create_benchmark_plot(multi_threaded, 'queue_time', 'Multi-Threaded', plots_dir)
     create_benchmark_plot(multi_threaded, 'performance', 'Multi-Threaded', plots_dir)
 
 def analyze_and_plot_results():
@@ -307,6 +321,10 @@ def analyze_and_plot_results():
               f"max={stat['duration_ms']['max']:.2f}, "
               f"avg={stat['duration_ms']['avg']:.2f}, "
               f"median={stat['duration_ms']['median']:.2f}")
+        print(f"  Queue Time (ms): min={stat['queue_time_ms']['min']:.2f}, "
+              f"max={stat['queue_time_ms']['max']:.2f}, "
+              f"avg={stat['queue_time_ms']['avg']:.2f}, "
+              f"median={stat['queue_time_ms']['median']:.2f}")
         print(f"  Messages/sec: min={stat['messages_per_second']['min']:.0f}, "
               f"max={stat['messages_per_second']['max']:.0f}, "
               f"avg={stat['messages_per_second']['avg']:.0f}, "
