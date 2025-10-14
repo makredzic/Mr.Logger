@@ -99,7 +99,7 @@ MR::Logger::init({
 
 #### Inspecting Configuration
 
-You can retrieve the final merged configuration at runtime:
+You can retrieve the final merged configuration at runtime. This operation is **thread-safe** (protected by a mutex):
 
 ```cpp
 MR::Logger::init({.batch_size = 48});
@@ -109,6 +109,51 @@ auto config = MR::Logger::getConfig();
 // config.queue_depth = 768 (auto-scaled: 48 * 16)
 // config.coalesce_size = 48 (auto-scaled to match batch_size)
 ```
+
+#### Flushing Behavior
+
+The logger provides two flushing mechanisms to ensure messages are written to disk:
+
+##### 1. Manual Flushing with `flush()`
+
+You can explicitly block until all queued messages are written:
+
+```cpp
+auto logger = MR::Logger::get();
+logger->info("Important message");
+logger->flush();  // Blocks until all messages are written to disk
+```
+
+The `flush()` method blocks the calling thread until:
+- The message queue is empty
+- All active write operations are complete
+
+This is useful when you need to guarantee messages are persisted before continuing (e.g., before critical operations or shutdown).
+
+##### 2. Automatic Flushing in Event Loop
+
+**The `batch_size` parameter controls syscall batching, not message persistence.** Here's how it works:
+
+**What `batch_size` actually controls:**
+- Number of `io_uring` write operations batched before calling the `io_uring_submit()` **syscall**
+- Example: `batch_size=32` means up to 32 writes are prepared in io_uring's submission queue before a single syscall submits them all
+- **Benefit**: Reduces syscall overhead (e.g., 100 messages = 4 syscalls instead of 100)
+
+**Every event loop iteration (runs continuously with ~10μs sleep when idle):**
+1. **Processes all available queue items** - formats messages, optionally coalesces into buffers
+2. **Prepares writes** - for each buffer, calls `io_uring_prep_write()` to add to io_uring's submission queue
+3. **Submits batch** - calls `io_uring_submit()` syscall when `pending_writes >= batch_size`
+4. **Flushes remaining messages** - any messages in the coalescing staging buffer are flushed to persistent buffers
+5. **Submits remaining writes** - calls `io_uring_submit()` if any writes remain **regardless of `batch_size`**
+6. **Processes completions** - handles completed I/O operations
+
+**This means:**
+- **High throughput scenario** (e.g., 1000 messages): Writes are batched efficiently (e.g., 32 per syscall)
+- **Low activity scenario** (e.g., 5 messages): Writes are submitted in the next event loop iteration (~10-20μs latency)
+- **Logger shutdown**: Event loop continues until queue is empty and all writes complete
+- **No message loss**: Messages are guaranteed to be written before logger destruction
+
+`batch_size` optimizes **syscall frequency** for throughput, but the event loop ensures **bounded latency** by submitting remaining writes at the end of each iteration. You get both high throughput under load and low latency during idle periods.
 
 #### Default Configuration Values
 

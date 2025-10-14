@@ -105,7 +105,7 @@ namespace MR::Logger {
       
       Config mergeWithDefault(const Config& user_config);
       void eventLoop(std::stop_token);
-      Coroutine::WriteTask submitWrite(std::unique_ptr<Memory::Buffer> buffer);
+      Coroutine::WriteTask createWriteTask(std::unique_ptr<Memory::Buffer> buffer);
       void reportError(const char* location, const std::string& what) const noexcept;
 
       template<typename T>

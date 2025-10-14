@@ -29,7 +29,7 @@ public:
       handle = h;  // Store handle for later resumption
 
       try {
-        bool success = ring->prepareWrite(file, buffer, len, this);
+        bool success = ring->enqueueSQE(file, buffer, len, this);
         if (!success) {
           result = -EAGAIN;
           h.resume();
@@ -66,7 +66,7 @@ public:
   inline bool isOperational() const { return is_operational_.load(std::memory_order_acquire); }
   inline void markFailed() noexcept { is_operational_.store(false, std::memory_order_release); }
 
-  inline WriteAwaiter write(const WriteOnlyFile& file, void* buffer, size_t len) {
+  inline WriteAwaiter createWriteAwaiter(const WriteOnlyFile& file, void* buffer, size_t len) {
     return WriteAwaiter{this, file, buffer, len, -1, {}};
   }
 
@@ -138,7 +138,7 @@ private:
   size_t queue_depth_;
   io_uring ring_;
 
-  inline bool prepareWrite(const WriteOnlyFile& file, void* buffer, size_t size, void* user_data) noexcept {
+  inline bool enqueueSQE(const WriteOnlyFile& file, void* buffer, size_t size, void* user_data) noexcept {
 
     // Check if ring is still operational
     if (!is_operational_.load(std::memory_order_acquire)) {

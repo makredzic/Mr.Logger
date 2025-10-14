@@ -215,7 +215,7 @@ Logger::Logger(const Config& config) :
 
           // If we got a buffer back, submit it for writing
           if (prepared.buffer) {
-            active_tasks.push_back(submitWrite(std::move(prepared.buffer)));
+            active_tasks.push_back(createWriteTask(std::move(prepared.buffer)));
             active_task_count_.fetch_add(1, std::memory_order_release);
             pending_writes++;
           }
@@ -245,7 +245,7 @@ Logger::Logger(const Config& config) :
       try {
         auto flushed = preparer.flushStaged();
         if (flushed.has_value()) {
-          active_tasks.push_back(submitWrite(std::move(flushed.value())));
+          active_tasks.push_back(createWriteTask(std::move(flushed.value())));
           active_task_count_.fetch_add(1, std::memory_order_release);
           pending_writes++;
         }
@@ -300,7 +300,7 @@ Logger::Logger(const Config& config) :
     }
   }
 
-  Coroutine::WriteTask Logger::submitWrite(std::unique_ptr<Memory::Buffer> buffer) {
+  Coroutine::WriteTask Logger::createWriteTask(std::unique_ptr<Memory::Buffer> buffer) {
     try {
       // Check if file rotation is needed
       if (file_rotater_.shouldRotate()) {
@@ -309,22 +309,22 @@ Logger::Logger(const Config& config) :
       }
 
       // Submit write to io_uring and wait for completion
-      int bytes_written = co_await ring_.write(file_, buffer->data, buffer->size);
+      int bytes_written = co_await ring_.createWriteAwaiter(file_, buffer->data, buffer->size);
 
       // Release buffer back to pool after write completes
       buffer_pool_.release(std::move(buffer));
 
       // Handle write result
       if (bytes_written < 0) {
-        reportError("submitWrite", "io_uring write failed with error code: " + std::to_string(bytes_written));
+        reportError("createWriteTask", "io_uring write failed with error code: " + std::to_string(bytes_written));
       } else {
         // Update file rotater with bytes written
         file_rotater_.updateCurrentSize(bytes_written);
       }
     } catch (const std::exception& e) {
-      reportError("submitWrite", e.what());
+      reportError("createWriteTask", e.what());
     } catch (...) {
-      reportError("submitWrite", "Unknown exception");
+      reportError("createWriteTask", "Unknown exception");
     }
   }
 
