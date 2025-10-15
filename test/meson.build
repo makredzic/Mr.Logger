@@ -12,7 +12,9 @@ test_filenames = [
   'Integration/LoggerIntegrationTest.cpp',
   'Unit/FileRotaterTest.cpp',
   'Unit/BufferPoolTest.cpp',
-  'Unit/LoggerConfigTest.cpp'
+  'Unit/LoggerConfigTest.cpp',
+  'Unit/StdQueueTest.cpp',
+  'Unit/FixedSizeBlockingQueueTest.cpp'
 ]
 
 # Build and test each one
