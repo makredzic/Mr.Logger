@@ -105,7 +105,6 @@ TEST_F(FixedSizeBlockingQueueTest, PopBlocksUntilElementAvailable) {
 }
 
 TEST_F(FixedSizeBlockingQueueTest, PushBlocksWhenQueueFull) {
-    // Fill the queue to capacity (10 elements)
     for (int i = 0; i < 10; ++i) {
         queue_->push(i);
     }
@@ -122,7 +121,6 @@ TEST_F(FixedSizeBlockingQueueTest, PushBlocksWhenQueueFull) {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     EXPECT_FALSE(push_completed);
 
-    // Pop one element to make space
     auto result = queue_->tryPop();
     ASSERT_TRUE(result.has_value());
 
@@ -150,7 +148,6 @@ TEST_F(FixedSizeBlockingQueueTest, ShutdownUnblocksWaitingPop) {
 }
 
 TEST_F(FixedSizeBlockingQueueTest, ShutdownUnblocksWaitingPush) {
-    // Fill queue
     for (int i = 0; i < 10; ++i) {
         queue_->push(i);
     }

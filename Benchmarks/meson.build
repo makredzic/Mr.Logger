@@ -15,6 +15,10 @@ benchmark_config = [
     ['BenchmarkSpdlog.cpp', 'Bench_Spdlog_SingleThread'],
     ['BenchmarkDefaultMultiThreaded.cpp', 'Bench_Default_MultiThread'],
     ['BenchmarkSpdlogMultiThreaded.cpp', 'Bench_Spdlog_MultiThread'],
+    ['BenchmarkFixedDefault.cpp', 'Bench_Fixed_Default_SingleThread'],
+    ['BenchmarkFixedSmall.cpp', 'Bench_Fixed_Small_SingleThread'],
+    ['BenchmarkFixedLarge.cpp', 'Bench_Fixed_Large_SingleThread'],
+    ['BenchmarkFixedDefaultMultiThreaded.cpp', 'Bench_Fixed_Default_Multithreaded'],
 ]
 
 # Build each benchmark executable and store references
@@ -55,22 +59,46 @@ run_target('bench-large',
 
 # Custom target to run spdlog benchmark
 run_target('bench-spdlog',
-  command: [benchmark_exes[3]],
-  depends: benchmark_exes[3]
+  command: [benchmark_exes[4]],
+  depends: benchmark_exes[4]
 )
 
+# Custom target to run fixed-size queue benchmarks
+run_target('bench-fixed-default',
+  command: [benchmark_exes[7]],
+  depends: benchmark_exes[7]
+)
+
+run_target('bench-fixed-small',
+  command: [benchmark_exes[8]],
+  depends: benchmark_exes[8]
+)
+
+run_target('bench-fixed-large',
+  command: [benchmark_exes[9]],
+  depends: benchmark_exes[9]
+)
+
+run_target('bench-fixed-multithreaded-default',
+  command: [benchmark_exes[10]],
+  depends: benchmark_exes[10]
+)
 
 # Custom target to run all benchmarks sequentially
 run_target('benchmarks',
   command: [
-    'sh', '-c', 
-    benchmark_exes[0].full_path() + ' && ' + 
-    benchmark_exes[1].full_path() + ' && ' + 
-    benchmark_exes[2].full_path() + ' && ' + 
+    'sh', '-c',
+    benchmark_exes[0].full_path() + ' && ' +
+    benchmark_exes[1].full_path() + ' && ' +
+    benchmark_exes[2].full_path() + ' && ' +
     benchmark_exes[3].full_path() + ' && ' +
     benchmark_exes[4].full_path() + ' && ' +
     benchmark_exes[5].full_path() + ' && ' +
-    benchmark_exes[6].full_path()
+    benchmark_exes[6].full_path() + ' && ' +
+    benchmark_exes[7].full_path() + ' && ' +
+    benchmark_exes[8].full_path() + ' && ' +
+    benchmark_exes[9].full_path() + ' && ' +
+    benchmark_exes[10].full_path()
   ],
   depends: benchmark_exes
 )
