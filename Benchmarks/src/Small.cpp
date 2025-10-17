@@ -2,8 +2,8 @@
 #include "BenchConfigs.hpp"
 
 int main() {
-    auto config = MR::Benchmarks::BenchConfigs::get_default_config(1);
-    config.name = "Bench_Default_SingleThread";
+    auto config = MR::Benchmarks::BenchConfigs::get_small_config(1);
+    config.name = "Small_SingleThread";
     
     MR::Benchmarks::run_benchmark(config);
     

@@ -8,17 +8,15 @@ benchmark_core_sources = files(
 
 # List of benchmark executables to build with new naming convention
 benchmark_config = [
-    ['BenchmarkDefault.cpp', 'Bench_Default_SingleThread'],
-    ['BenchmarkSmall.cpp', 'Bench_Small_SingleThread'],
-    ['BenchmarkLarge.cpp', 'Bench_Large_SingleThread'],
-    ['BenchmarkNoBatch.cpp', 'Bench_NoBatch_SingleThread'],
-    ['BenchmarkSpdlog.cpp', 'Bench_Spdlog_SingleThread'],
-    ['BenchmarkDefaultMultiThreaded.cpp', 'Bench_Default_MultiThread'],
-    ['BenchmarkSpdlogMultiThreaded.cpp', 'Bench_Spdlog_MultiThread'],
-    ['BenchmarkFixedDefault.cpp', 'Bench_Fixed_Default_SingleThread'],
-    ['BenchmarkFixedSmall.cpp', 'Bench_Fixed_Small_SingleThread'],
-    ['BenchmarkFixedLarge.cpp', 'Bench_Fixed_Large_SingleThread'],
-    ['BenchmarkFixedDefaultMultiThreaded.cpp', 'Bench_Fixed_Default_Multithreaded'],
+    ['Default.cpp', 'Default_SingleThread'],
+    ['Small.cpp', 'Small_SingleThread'],
+    ['Large.cpp', 'Large_SingleThread'],
+    ['NoBatch.cpp', 'NoBatch_SingleThread'],
+    ['Spdlog.cpp', 'Spdlog_SingleThread'],
+    ['DefaultMultiThreaded.cpp', 'Default_MultiThread'],
+    ['SpdlogMultiThreaded.cpp', 'Spdlog_MultiThread'],
+    ['FixedDefault.cpp', 'Fixed_Default_SingleThread'],
+    ['FixedDefaultMultiThreaded.cpp', 'Fixed_Default_Multithreaded'],
 ]
 
 # Build each benchmark executable and store references
@@ -26,7 +24,7 @@ benchmark_exes = []
 foreach bench_info : benchmark_config
   exe_src = bench_info[0]
   exe_name = bench_info[1]
-  
+
   exe = executable(exe_name,
     [benchmark_core_sources, files('src/' + exe_src)],
     include_directories: [incdir, benchmark_incdir],
@@ -34,7 +32,7 @@ foreach bench_info : benchmark_config
     link_with: mrlogger_lib,
     install: false
   )
-  
+
   # Store executable reference for custom targets
   benchmark_exes += exe
 endforeach
@@ -69,19 +67,9 @@ run_target('bench-fixed-default',
   depends: benchmark_exes[7]
 )
 
-run_target('bench-fixed-small',
+run_target('bench-fixed-multithreaded-default',
   command: [benchmark_exes[8]],
   depends: benchmark_exes[8]
-)
-
-run_target('bench-fixed-large',
-  command: [benchmark_exes[9]],
-  depends: benchmark_exes[9]
-)
-
-run_target('bench-fixed-multithreaded-default',
-  command: [benchmark_exes[10]],
-  depends: benchmark_exes[10]
 )
 
 # Custom target to run all benchmarks sequentially
@@ -96,9 +84,7 @@ run_target('benchmarks',
     benchmark_exes[5].full_path() + ' && ' +
     benchmark_exes[6].full_path() + ' && ' +
     benchmark_exes[7].full_path() + ' && ' +
-    benchmark_exes[8].full_path() + ' && ' +
-    benchmark_exes[9].full_path() + ' && ' +
-    benchmark_exes[10].full_path()
+    benchmark_exes[8].full_path()
   ],
   depends: benchmark_exes
 )

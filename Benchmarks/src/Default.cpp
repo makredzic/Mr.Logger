@@ -2,8 +2,8 @@
 #include "BenchConfigs.hpp"
 
 int main() {
-    auto config = MR::Benchmarks::BenchConfigs::get_spdlog_config(10);
-    config.name = "Bench_Spdlog_MultiThread";
+    auto config = MR::Benchmarks::BenchConfigs::get_default_config(1);
+    config.name = "Default_SingleThread";
     
     MR::Benchmarks::run_benchmark(config);
     

@@ -3,7 +3,7 @@
 
 int main() {
     auto config = MR::Benchmarks::BenchConfigs::get_fixed_default_config(1);
-    config.name = "Bench_Fixed_Default_SingleThread";
+    config.name = "Fixed_Default_SingleThread";
 
     MR::Benchmarks::run_benchmark(config);
 
