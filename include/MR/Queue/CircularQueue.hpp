@@ -9,7 +9,7 @@
 namespace MR::Queue {
 
 template <typename T>
-class FixedSizeBlockingQueue : public Interface::ThreadSafeQueue<T> {
+class CircularQueue : public Interface::ThreadSafeQueue<T> {
 private:
     const size_t capacity_;
     std::vector<T> buffer_;
@@ -18,38 +18,41 @@ private:
     size_t count_{0};
 
     mutable std::mutex mutex_;
-    std::condition_variable not_full_;
     std::condition_variable not_empty_;
     bool stopped_{false};
 
 public:
-    explicit FixedSizeBlockingQueue(size_t requested_capacity)
+    explicit CircularQueue(size_t requested_capacity)
         : capacity_(requested_capacity), buffer_(requested_capacity) {
         if (requested_capacity == 0) {
             throw std::invalid_argument("Queue capacity must be > 0");
         }
     }
 
-    ~FixedSizeBlockingQueue() override {
+    ~CircularQueue() override {
         shutdown();
     }
 
-    FixedSizeBlockingQueue(const FixedSizeBlockingQueue&) = delete;
-    FixedSizeBlockingQueue& operator=(const FixedSizeBlockingQueue&) = delete;
-    FixedSizeBlockingQueue(FixedSizeBlockingQueue&&) = delete;
-    FixedSizeBlockingQueue& operator=(FixedSizeBlockingQueue&&) = delete;
+    CircularQueue(const CircularQueue&) = delete;
+    CircularQueue& operator=(const CircularQueue&) = delete;
+    CircularQueue(CircularQueue&&) = delete;
+    CircularQueue& operator=(CircularQueue&&) = delete;
 
     void push(const T& item) override {
         std::unique_lock<std::mutex> lock(mutex_);
-        not_full_.wait(lock, [this] { return count_ < capacity_ || stopped_; });
 
         if (stopped_) {
-            throw std::runtime_error("Queue is stopped");
+            return;
         }
 
         buffer_[tail_] = item;
         tail_ = (tail_ + 1) % capacity_;
-        ++count_;
+
+        if (count_ == capacity_) {
+            head_ = (head_ + 1) % capacity_;
+        } else {
+            ++count_;
+        }
 
         lock.unlock();
         not_empty_.notify_one();
@@ -57,15 +60,19 @@ public:
 
     void push(T&& item) override {
         std::unique_lock<std::mutex> lock(mutex_);
-        not_full_.wait(lock, [this] { return count_ < capacity_ || stopped_; });
 
         if (stopped_) {
-            return;
+            throw std::runtime_error("Queue is stopped");
         }
 
         buffer_[tail_] = std::move(item);
         tail_ = (tail_ + 1) % capacity_;
-        ++count_;
+
+        if (count_ == capacity_) {
+            head_ = (head_ + 1) % capacity_;
+        } else {
+            ++count_;
+        }
 
         lock.unlock();
         not_empty_.notify_one();
@@ -82,9 +89,6 @@ public:
         head_ = (head_ + 1) % capacity_;
         --count_;
 
-        lock.unlock();
-        not_full_.notify_one();
-
         return item;
     }
 
@@ -99,9 +103,6 @@ public:
         T item = std::move(buffer_[head_]);
         head_ = (head_ + 1) % capacity_;
         --count_;
-
-        lock.unlock();
-        not_full_.notify_one();
 
         return item;
     }
@@ -119,7 +120,6 @@ public:
     void shutdown() override {
         std::lock_guard<std::mutex> lock(mutex_);
         stopped_ = true;
-        not_full_.notify_all();
         not_empty_.notify_all();
     }
 };

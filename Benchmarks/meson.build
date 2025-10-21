@@ -17,6 +17,8 @@ benchmark_config = [
     ['SpdlogMultiThreaded.cpp', 'Spdlog_MultiThread'],
     ['FixedDefault.cpp', 'Fixed_Default_SingleThread'],
     ['FixedDefaultMultiThreaded.cpp', 'Fixed_Default_Multithreaded'],
+    ['CircularDefault.cpp', 'Circular_Default_SingleThread'],
+    ['CircularDefaultMultiThreaded.cpp', 'Circular_Default_Multithreaded'],
 ]
 
 # Build each benchmark executable and store references
@@ -72,6 +74,17 @@ run_target('bench-fixed-multithreaded-default',
   depends: benchmark_exes[8]
 )
 
+# Custom target to run circular queue benchmarks
+run_target('bench-circular-default',
+  command: [benchmark_exes[9]],
+  depends: benchmark_exes[9]
+)
+
+run_target('bench-circular-multithreaded-default',
+  command: [benchmark_exes[10]],
+  depends: benchmark_exes[10]
+)
+
 # Custom target to run all benchmarks sequentially
 run_target('benchmarks',
   command: [
@@ -84,7 +97,9 @@ run_target('benchmarks',
     benchmark_exes[5].full_path() + ' && ' +
     benchmark_exes[6].full_path() + ' && ' +
     benchmark_exes[7].full_path() + ' && ' +
-    benchmark_exes[8].full_path()
+    benchmark_exes[8].full_path() + ' && ' +
+    benchmark_exes[9].full_path() + ' && ' +
+    benchmark_exes[10].full_path()
   ],
   depends: benchmark_exes
 )

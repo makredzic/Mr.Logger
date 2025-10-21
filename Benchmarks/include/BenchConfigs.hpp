@@ -4,6 +4,7 @@
 #include <MR/Logger/Config.hpp>
 #include <MR/Queue/StdQueue.hpp>
 #include <MR/Queue/FixedSizeBlockingQueue.hpp>
+#include <MR/Queue/CircularQueue.hpp>
 #include <MR/Logger/WriteRequest.hpp>
 #include <memory>
 #include <string>
@@ -168,6 +169,27 @@ public:
             .large_buffer_size = 16384u,
             .shutdown_timeout_seconds = 60u,
             ._queue = std::make_shared<MR::Queue::FixedSizeBlockingQueue<MR::Logger::WriteRequest>>(8192),
+        };
+        return config;
+    }
+
+    // CircularQueue benchmarks
+    static BenchmarkConfig get_circular_default_config(size_t thread_count = 1) {
+        auto config = BenchmarkConfig(BenchmarkType::MRLogger, "CircularDefault", thread_count);
+        std::string thread_suffix = thread_count > 1 ? "_MultiThread" : "_SingleThread";
+        config.logger_config = MR::Logger::Config{
+            .log_file_name = "Bench_Circular_Default" + thread_suffix + ".log",
+            .max_log_size_bytes = 200 * 1024 * 1024, // 200MB - prevent rotation during benchmark
+            .batch_size = 64u,
+            .queue_depth = 512u,
+            .small_buffer_pool_size = 256u,
+            .medium_buffer_pool_size = 128u,
+            .large_buffer_pool_size = 64u,
+            .small_buffer_size = 1024u,
+            .medium_buffer_size = 4096u,
+            .large_buffer_size = 16384u,
+            .shutdown_timeout_seconds = 60u,
+            ._queue = std::make_shared<MR::Queue::CircularQueue<MR::Logger::WriteRequest>>(1024),
         };
         return config;
     }
