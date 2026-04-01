@@ -1,3 +1,5 @@
+![mr logger logo](https://i.imgur.com/PXI1Ni5.png)
+
 # Project Overview
 
 MrLogger (pronounced *Mister Logger*) is a high-performance C++20 logging library built as part of a Master's thesis research project. It utilizes modern C++20 features (mainly coroutines) as well as io_uring for asynchronous I/O operations, comparing performance against established libraries like spdlog.
